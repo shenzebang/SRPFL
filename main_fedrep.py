@@ -140,7 +140,9 @@ if __name__ == '__main__':
         running_time_ordering = np.argsort(simulated_running_time)
         idxs_users = running_time_ordering[:m]
         running_time_all += np.sort(simulated_running_time)[m-1]
-        running_time_record.append(running_time_all)
+
+        if iter % args.test_freq == args.test_freq - 1 or iter >= args.epochs - 10:
+            running_time_record.append(running_time_all)
 
         if iter == args.epochs: # last epoch is for fine tuning
             m = args.num_users
