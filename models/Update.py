@@ -571,7 +571,11 @@ class LocalUpdate(object):
                              nesterov = False,
                              weight_decay = 1e-4)
 
-        local_eps = self.args.local_ep
+        if self.args.alg == "fedrep":
+            local_eps = self.args.local_rep_ep * self.args.head_ep_per_rep_update
+        else:
+            local_eps = self.args.local_ep
+
         if last:
             if self.args.alg =='fedavg' or self.args.alg == 'prox':
                 local_eps= 10
@@ -580,24 +584,23 @@ class LocalUpdate(object):
                     w_glob_keys = [net.weight_keys[i] for i in [0,1,3,4]]
                 elif 'sent140' in self.args.dataset:
                     w_glob_keys = [net_keys[i] for i in [0,1,2,3,4,5]]
-                elif 'mnist' in args.dataset:
-                    w_glob_keys = [net_glob.weight_keys[i] for i in [0,1,2]]
+                elif 'mnist' in self.args.dataset:
+                    w_glob_keys = [net.weight_keys[i] for i in [0,1,2]]
             elif 'maml' in self.args.alg:
                 local_eps = 5
                 w_glob_keys = []
             else:
-                local_eps =  max(10,local_eps-self.args.local_rep_ep)
-        
-        head_eps = local_eps-self.args.local_rep_ep
+                local_eps =  10
+
         epoch_loss = []
         num_updates = 0
         if 'sent140' in self.args.dataset:
             hidden_train = net.init_hidden(self.args.local_bs)
         for iter in range(local_eps):
             done = False
-
+            flag_update_head = iter % self.args.head_ep_per_rep_update != self.args.head_ep_per_rep_update - 1
             # for FedRep, first do local epochs for the head
-            if (iter < head_eps and self.args.alg == 'fedrep') or last:
+            if (flag_update_head and self.args.alg == 'fedrep') or last:
                 for name, param in net.named_parameters():
                     if name in w_glob_keys:
                         param.requires_grad = False
@@ -605,7 +608,7 @@ class LocalUpdate(object):
                         param.requires_grad = True
             
             # then do local epochs for the representation
-            elif iter == head_eps and self.args.alg == 'fedrep' and not last:
+            elif not flag_update_head and self.args.alg == 'fedrep' and not last:
                 for name, param in net.named_parameters():
                     if name in w_glob_keys:
                         param.requires_grad = True

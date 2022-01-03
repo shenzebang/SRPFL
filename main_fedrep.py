@@ -19,7 +19,7 @@ from utils.options import args_parser
 from utils.train_utils import get_data, get_model, read_data
 from models.Update import LocalUpdate
 from models.test import test_img_local_all
-from tqdm import tqdm
+from tqdm import tqdm, trange
 import time
 
 if __name__ == '__main__':
@@ -127,7 +127,9 @@ if __name__ == '__main__':
     m = args.init_clients
     running_time_record = []
     running_time_all = 0
-    for iter in range(args.epochs+1):
+    for iter in trange(args.epochs+1):
+        test_flag = iter % args.test_freq == args.test_freq - 1 or iter >= args.epochs - 10
+
         w_glob = {}
         loss_locals = []
 
@@ -141,7 +143,7 @@ if __name__ == '__main__':
         idxs_users = running_time_ordering[:m]
         running_time_all += np.sort(simulated_running_time)[m-1]
 
-        if iter % args.test_freq == args.test_freq - 1 or iter >= args.epochs - 10:
+        if test_flag:
             running_time_record.append(running_time_all)
 
         if iter == args.epochs: # last epoch is for fine tuning
@@ -151,7 +153,7 @@ if __name__ == '__main__':
         w_keys_epoch = w_glob_keys
         times_in = []
         total_len=0
-        for ind, idx in tqdm(enumerate(idxs_users)):
+        for ind, idx in enumerate(idxs_users):
             start_in = time.time()
             if 'femnist' in args.dataset or 'sent140' in args.dataset:
                 if args.epochs == iter:
@@ -205,7 +207,7 @@ if __name__ == '__main__':
         if args.epochs != iter:
             net_glob.load_state_dict(w_glob)
 
-        if iter % args.test_freq==args.test_freq-1 or iter>=args.epochs-10:
+        if test_flag:
             if times == []:
                 times.append(max(times_in))
             else:
