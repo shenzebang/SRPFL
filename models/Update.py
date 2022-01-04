@@ -546,7 +546,7 @@ class LocalUpdate(object):
         self.dataset=dataset
         self.idxs=idxs
 
-    def train(self, net, w_glob_keys, last=False, dataset_test=None, ind=-1, idx=-1, lr=0.1):
+    def train(self, net, representation_keys, last=False, dataset_test=None, ind=-1, idx=-1, lr=0.1):
         bias_p=[]
         weight_p=[]
         for name, p in net.named_parameters():
@@ -576,21 +576,21 @@ class LocalUpdate(object):
         else:
             local_eps = self.args.local_ep
 
-        if last:
-            if self.args.alg =='fedavg' or self.args.alg == 'prox':
-                local_eps= 10
-                net_keys = [*net.state_dict().keys()]
-                if 'cifar' in self.args.dataset:
-                    w_glob_keys = [net.weight_keys[i] for i in [0,1,3,4]]
-                elif 'sent140' in self.args.dataset:
-                    w_glob_keys = [net_keys[i] for i in [0,1,2,3,4,5]]
-                elif 'mnist' in self.args.dataset:
-                    w_glob_keys = [net.weight_keys[i] for i in [0,1,2]]
-            elif 'maml' in self.args.alg:
-                local_eps = 5
-                w_glob_keys = []
-            else:
-                local_eps =  10
+        # if last:
+        #     if self.args.alg =='fedavg' or self.args.alg == 'prox':
+        #         local_eps= 10
+        #         net_keys = [*net.state_dict().keys()]
+        #         if 'cifar' in self.args.dataset:
+        #             w_glob_keys = [net.weight_keys[i] for i in [0,1,3,4]]
+        #         elif 'sent140' in self.args.dataset:
+        #             w_glob_keys = [net_keys[i] for i in [0,1,2,3,4,5]]
+        #         elif 'mnist' in self.args.dataset:
+        #             w_glob_keys = [net.weight_keys[i] for i in [0,1,2]]
+        #     elif 'maml' in self.args.alg:
+        #         local_eps = 5
+        #         w_glob_keys = []
+        #     else:
+        #         local_eps =  10
 
         epoch_loss = []
         num_updates = 0
@@ -602,7 +602,7 @@ class LocalUpdate(object):
             # for FedRep, first do local epochs for the head
             if (flag_update_head and self.args.alg == 'fedrep') or last:
                 for name, param in net.named_parameters():
-                    if name in w_glob_keys:
+                    if name in representation_keys:
                         param.requires_grad = False
                     else:
                         param.requires_grad = True
@@ -610,7 +610,7 @@ class LocalUpdate(object):
             # then do local epochs for the representation
             elif not flag_update_head and self.args.alg == 'fedrep' and not last:
                 for name, param in net.named_parameters():
-                    if name in w_glob_keys:
+                    if name in representation_keys:
                         param.requires_grad = True
                     else:
                         param.requires_grad = False

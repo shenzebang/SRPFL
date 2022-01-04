@@ -17,6 +17,7 @@ from torch import nn
 
 from utils.options import args_parser
 from utils.train_utils import get_data, get_model, read_data
+from utils.test_utils import test_fine_tune
 from models.Update import LocalUpdate
 from models.test import test_img_local_all
 from tqdm import tqdm, trange
@@ -64,70 +65,73 @@ if __name__ == '__main__':
     print(net_glob.state_dict().keys())
     net_keys = [*net_glob.state_dict().keys()]
 
-    # specify the representation parameters (in w_glob_keys) and head parameters (all others)
-    if args.alg == 'fedrep' or args.alg == 'fedper':
+    # specify the representation parameters (in representation_keys) and head parameters (all others)
+    if args.alg == 'fedrep' or args.alg == 'fedper' or args.alg == 'fedavg' or args.alg == 'prox':
         if 'cifar' in  args.dataset:
-            w_glob_keys = [net_glob.weight_keys[i] for i in [0,1,3,4]]
+            representation_keys = [net_glob.weight_keys[i] for i in [0,1,3,4]]
         elif 'mnist' in args.dataset:
-            w_glob_keys = [net_glob.weight_keys[i] for i in [0,1,2]]
+            representation_keys = [net_glob.weight_keys[i] for i in [0,1,2]]
         elif 'sent140' in args.dataset:
-            w_glob_keys = [net_keys[i] for i in [0,1,2,3,4,5]]
+            representation_keys = [net_keys[i] for i in [0,1,2,3,4,5]]
         else:
-            w_glob_keys = net_keys[:-2]
+            representation_keys = net_keys[:-2]
     elif args.alg == 'lg':
         if 'cifar' in  args.dataset:
-            w_glob_keys = [net_glob.weight_keys[i] for i in [1,2]]
+            representation_keys = [net_glob.weight_keys[i] for i in [1,2]]
         elif 'mnist' in args.dataset:
-            w_glob_keys = [net_glob.weight_keys[i] for i in [2,3]]
+            representation_keys = [net_glob.weight_keys[i] for i in [2,3]]
         elif 'sent140' in args.dataset:
-            w_glob_keys = [net_keys[i] for i in [0,6,7]]
+            representation_keys = [net_keys[i] for i in [0,6,7]]
         else:
-            w_glob_keys = net_keys[total_num_layers - 2:]
+            representation_keys = net_keys[total_num_layers - 2:]
+    else:
+        raise NotImplementedError
 
-    if args.alg == 'fedavg' or args.alg == 'prox':
-        w_glob_keys = []
+    # if args.alg == 'fedavg' or args.alg == 'prox':
+    #     representation_keys = net_glob.weight_keys
     if 'sent140' not in args.dataset:
-        w_glob_keys = list(itertools.chain.from_iterable(w_glob_keys))
+        representation_keys = list(itertools.chain.from_iterable(representation_keys))
     
     print(total_num_layers)
-    print(w_glob_keys)
+    print(representation_keys)
     print(net_keys)
-    if args.alg == 'fedrep' or args.alg == 'fedper' or args.alg == 'lg':
+    if args.alg == 'fedrep' or args.alg == 'fedper' or args.alg == 'lg' or args.alg == 'fedavg' or args.alg == 'prox':
         num_param_glob = 0
         num_param_local = 0
         for key in net_glob.state_dict().keys():
             num_param_local += net_glob.state_dict()[key].numel()
             print(num_param_local)
-            if key in w_glob_keys:
+            if key in representation_keys:
                 num_param_glob += net_glob.state_dict()[key].numel()
         percentage_param = 100 * float(num_param_glob) / num_param_local
         print('# Params: {} (local), {} (global); Percentage {:.2f} ({}/{})'.format(
             num_param_local, num_param_glob, percentage_param, num_param_glob, num_param_local))
     print("learning rate, batch size: {}, {}".format(args.lr, args.local_bs))
 
-    # generate list of local models for each user
-    net_local_list = []
-    w_locals = {}
+    # generate list of local heads for each user
+    local_heads = {}
     for user in range(args.num_users):
-        w_local_dict = {}
+        _head = {}
         for key in net_glob.state_dict().keys():
-            w_local_dict[key] =net_glob.state_dict()[key]
-        w_locals[user] = w_local_dict
+            if key not in representation_keys:
+                _head[key] = net_glob.state_dict()[key]
+        local_heads[user] = _head
 
     # training
     indd = None      # indices of embedding for sent140
     loss_train = []
-    accs = []
+    FT_accs = [] # records of fine tuning model accuracy
+    global_accs = [] # records of global model accuracy
     times = []
-    accs10 = 0
-    accs10_glob = 0
+    FT_accs10 = 0
+    global_accs10 = 0
     start = time.time()
     simulated_running_time = np.random.exponential(1, args.num_users)
     double_c = args.double_freq
     m = args.init_clients
     running_time_record = []
     running_time_all = 0
-    for iter in trange(args.epochs+1):
+    for iter in trange(args.epochs):
         test_flag = iter % args.test_freq == args.test_freq - 1 or iter >= args.epochs - 10
 
         w_glob = {}
@@ -150,7 +154,7 @@ if __name__ == '__main__':
             m = args.num_users
             idxs_users = np.random.choice(range(args.num_users), m, replace=False)
 
-        w_keys_epoch = w_glob_keys
+        w_keys_epoch = representation_keys
         times_in = []
         total_len=0
         for ind, idx in enumerate(idxs_users):
@@ -169,29 +173,27 @@ if __name__ == '__main__':
             net_local = copy.deepcopy(net_glob)
             w_local = net_local.state_dict()
             if args.alg != 'fedavg' and args.alg != 'prox':
-                for k in w_locals[idx].keys():
-                    if k not in w_glob_keys:
-                        w_local[k] = w_locals[idx][k]
+                for k in local_heads[idx].keys():
+                    w_local[k] = local_heads[idx][k]
             net_local.load_state_dict(w_local)
             last = iter == args.epochs
             if 'femnist' in args.dataset or 'sent140' in args.dataset:
-                w_local, loss, indd = local.train(net=net_local.to(args.device),ind=idx, idx=clients[idx], w_glob_keys=w_glob_keys, lr=args.lr,last=last)
+                w_local, loss, indd = local.train(net=net_local.to(args.device), ind=idx, idx=clients[idx], representation_keys=representation_keys, lr=args.lr,last=last)
             else:
-                w_local, loss, indd = local.train(net=net_local.to(args.device), idx=idx, w_glob_keys=w_glob_keys, lr=args.lr, last=last)
+                w_local, loss, indd = local.train(net=net_local.to(args.device), idx=idx, representation_keys=representation_keys, lr=args.lr, last=last)
             loss_locals.append(copy.deepcopy(loss))
             total_len += lens[idx]
             if len(w_glob) == 0:
                 w_glob = copy.deepcopy(w_local)
                 for k,key in enumerate(net_glob.state_dict().keys()):
                     w_glob[key] = w_glob[key]*lens[idx]
-                    w_locals[idx][key] = w_local[key]
+                    if key not in representation_keys:
+                        local_heads[idx][key] = w_local[key]
             else:
                 for k,key in enumerate(net_glob.state_dict().keys()):
-                    if key in w_glob_keys:
-                        w_glob[key] += w_local[key]*lens[idx]
-                    else:
-                        w_glob[key] += w_local[key]*lens[idx]
-                    w_locals[idx][key] = w_local[key]
+                    w_glob[key] += w_local[key]*lens[idx]
+                    if key not in representation_keys:
+                        local_heads[idx][key] = w_local[key]
 
             times_in.append( time.time() - start_in )
         loss_avg = sum(loss_locals) / len(loss_locals)
@@ -212,47 +214,49 @@ if __name__ == '__main__':
                 times.append(max(times_in))
             else:
                 times.append(times[-1] + max(times_in))
-            acc_test, loss_test = test_img_local_all(net_glob, args, dataset_test, dict_users_test,
-                                                        w_glob_keys=w_glob_keys, w_locals=w_locals,indd=indd,dataset_train=dataset_train, dict_users_train=dict_users_train, return_all=False)
-            accs.append(acc_test)
-            # for algs which learn a single global model, these are the local accuracies (computed using the locally updated versions of the global model at the end of each round)
-            if iter != args.epochs:
-                print('Round {:3d}, Train loss: {:.3f}, Test loss: {:.3f}, Test accuracy: {:.2f}'.format(
-                        iter, loss_avg, loss_test, acc_test))
-            else:
-                # in the final round, we sample all users, and for the algs which learn a single global model, we fine-tune the head for 10 local epochs for fair comparison with FedRep
-                print('Final Round, Train loss: {:.3f}, Test loss: {:.3f}, Test accuracy: {:.2f}'.format(
-                        loss_avg, loss_test, acc_test))
-            if iter >= args.epochs-10 and iter != args.epochs:
-                accs10 += acc_test/10
+
+            FT_acc_test, loss_test = test_fine_tune(net_glob, args, dataset_test, dict_users_test,
+                                                         representation_keys=representation_keys,
+                                                         dataset_train=dataset_train, dict_users_train=dict_users_train)
+            print('Round {:3d}, FT, Train loss: {:.3f}, Test loss: {:.3f}, Test accuracy: {:.2f}'.format(
+                iter, loss_avg, loss_test, FT_acc_test))
+
+            FT_accs.append(FT_acc_test)
+
+            if iter >= args.epochs-10:
+                FT_accs10 += FT_acc_test/10
 
             # below prints the global accuracy of the single global model for the relevant algs
             if args.alg == 'fedavg' or args.alg == 'prox':
-                acc_test, loss_test = test_img_local_all(net_glob, args, dataset_test, dict_users_test,
-                                                        w_locals=None,indd=indd,dataset_train=dataset_train, dict_users_train=dict_users_train, return_all=False)
-                if iter != args.epochs:
-                    print('Round {:3d}, Global train loss: {:.3f}, Global test loss: {:.3f}, Global test accuracy: {:.2f}'.format(
-                        iter, loss_avg, loss_test, acc_test))
-                else:
-                    print('Final Round, Global train loss: {:.3f}, Global test loss: {:.3f}, Global test accuracy: {:.2f}'.format(
-                        loss_avg, loss_test, acc_test))
-            if iter >= args.epochs-10 and iter != args.epochs:
-                accs10_glob += acc_test/10
+                global_acc_test, loss_test = test_img_local_all(net_glob, args, dataset_test, dict_users_test,
+                                                        indd=indd,dataset_train=dataset_train, dict_users_train=dict_users_train, return_all=False)
+                print('Round {:3d}, Global train loss: {:.3f}, Global test loss: {:.3f}, Global test accuracy: {:.2f}'.format(
+                    iter, loss_avg, loss_test, global_acc_test))
+
+                global_accs.append(global_acc_test)
+                if iter >= args.epochs-10:
+                    global_accs10 += global_acc_test/10
 
         if iter % args.save_every==args.save_every-1:
             model_save_path = './save/accs_'+ args.alg + '_' + args.dataset + '_' + str(args.num_users) +'_'+ str(args.shard_per_user) +'_iter' + str(iter)+ '.pt'
             torch.save(net_glob.state_dict(), model_save_path)
 
-    print('Average accuracy final 10 rounds: {}'.format(accs10))
+    print('Average accuracy final 10 rounds: {}'.format(FT_accs10))
     if args.alg == 'fedavg' or args.alg == 'prox':
-        print('Average global accuracy final 10 rounds: {}'.format(accs10_glob))
+        print('Average global accuracy final 10 rounds: {}'.format(global_accs10))
     end = time.time()
-    print(end-start)
-    print(times)
-    print(accs)
-    base_dir = f"./save/result-{args.dataset}-{args.shard_per_user}-{args.num_users}-{args.description}-{args.repeat_id}.csv"
-    user_save_path = base_dir
-    accs = np.array(accs)
+    # print(end-start)
+    # print(times)
+    # print(accs)
     times = np.array(running_time_record)
-    accs = pd.DataFrame(np.stack([times, accs], axis=1), columns=['times', 'accs'])
-    accs.to_csv(base_dir, index=False)
+
+    FT_save_file = f"./save/result-{args.dataset}-{args.shard_per_user}-{args.num_users}-{args.description}-FT-{args.repeat_id}.csv"
+    FT_accs = np.array(FT_accs)
+    FT_accs = pd.DataFrame(np.stack([times, FT_accs], axis=1), columns=['times', 'accs'])
+    FT_accs.to_csv(FT_save_file, index=False)
+
+    if args.alg == 'fedavg' or args.alg == 'prox':
+        global_save_file = f"./save/result-{args.dataset}-{args.shard_per_user}-{args.num_users}-{args.description}-global-{args.repeat_id}.csv"
+        global_accs = np.array(global_accs)
+        global_accs = pd.DataFrame(np.stack([times, global_accs], axis=1), columns=['times', 'accs'])
+        global_accs.to_csv(global_save_file, index=False)
