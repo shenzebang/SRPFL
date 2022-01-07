@@ -559,7 +559,7 @@ class LocalUpdate(object):
             {'params': weight_p, 'weight_decay':0.0001},
             {'params': bias_p, 'weight_decay':0}
         ],
-        lr=lr, momentum=0.5
+        lr=lr, momentum=self.args.momentum
         )
         if self.args.alg == 'prox':
             optimizer = FedProx.FedProx(net.parameters(),
