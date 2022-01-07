@@ -7,6 +7,11 @@ from utils.sampling import noniid
 import os
 import json
 
+import numpy as np
+import random
+import torch
+
+
 trans_mnist = transforms.Compose([transforms.ToTensor(),
                                   transforms.Normalize((0.1307,), (0.3081,))])
 trans_cifar10_train = transforms.Compose([transforms.RandomCrop(32, padding=4),
@@ -110,3 +115,9 @@ def get_model(args):
     print(net_glob)
 
     return net_glob
+
+
+def set_seed(seeds):
+    np.random.seed(seeds[0])
+    random.seed(seeds[1])
+    torch.manual_seed(seeds[2])

@@ -16,7 +16,7 @@ import torch
 from torch import nn
 
 from utils.options import args_parser
-from utils.train_utils import get_data, get_model, read_data
+from utils.train_utils import get_data, get_model, read_data, set_seed
 from utils.test_utils import test_fine_tune
 from models.Update import LocalUpdate
 from models.test import test_img_local_all
@@ -27,6 +27,15 @@ if __name__ == '__main__':
     # parse args
     args = args_parser()
     args.device = torch.device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() and args.gpu != -1 else 'cpu')
+
+
+    # control the seed for reproducibility
+    np.random.seed(args.seed)
+    seeds = np.random.randint(1000000, size=3)
+    set_seed(seeds)
+
+    seeds = np.random.randint(1000000, size=(args.epochs, 3))
+
 
     lens = np.ones(args.num_users)
     if 'cifar' in args.dataset or args.dataset == 'mnist':
@@ -132,6 +141,11 @@ if __name__ == '__main__':
     running_time_record = []
     running_time_all = 0
     for iter in trange(args.epochs):
+
+        set_seed(seeds[iter])
+
+
+
         test_flag = iter % args.test_freq == args.test_freq - 1 or iter >= args.epochs - 10
 
         w_glob = {}
@@ -150,9 +164,6 @@ if __name__ == '__main__':
         if test_flag:
             running_time_record.append(running_time_all)
 
-        if iter == args.epochs: # last epoch is for fine tuning
-            m = args.num_users
-            idxs_users = np.random.choice(range(args.num_users), m, replace=False)
 
         w_keys_epoch = representation_keys
         times_in = []
@@ -198,7 +209,6 @@ if __name__ == '__main__':
             times_in.append( time.time() - start_in )
         loss_avg = sum(loss_locals) / len(loss_locals)
         loss_train.append(loss_avg)
-
         # get weighted average for global weights
         for k in net_glob.state_dict().keys():
             w_glob[k] = torch.div(w_glob[k], total_len)
