@@ -572,7 +572,7 @@ class LocalUpdate(object):
                              weight_decay = 1e-4)
 
         if self.args.alg == "fedrep":
-            local_eps = self.args.local_rep_ep * self.args.head_ep_per_rep_update
+            local_eps = self.args.local_rep_ep * (self.args.head_ep_per_rep_update+1)
         else:
             local_eps = self.args.local_ep
 
@@ -598,7 +598,7 @@ class LocalUpdate(object):
             hidden_train = net.init_hidden(self.args.local_bs)
         for iter in range(local_eps):
             done = False
-            flag_update_head = iter % self.args.head_ep_per_rep_update != self.args.head_ep_per_rep_update - 1
+            flag_update_head = iter % (1+self.args.head_ep_per_rep_update) != self.args.head_ep_per_rep_update
             # for FedRep, first do local epochs for the head
             if (flag_update_head and self.args.alg == 'fedrep') or last:
                 for name, param in net.named_parameters():
