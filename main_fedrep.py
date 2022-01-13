@@ -143,12 +143,14 @@ if __name__ == '__main__':
     if args.hyper_setting is "iid-hyper":
         simulated_running_time = np.random.exponential(1, args.num_users)
     elif args.hyper_setting is "noniid-hyper":
-        simulated_running_time = np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers])
+        simulated_running_time = np.squeeze(np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers]))
     else:
         raise NotImplementedError
 
     double_c = args.double_freq
-    m = args.init_clients
+    if args.init_clients < args.frac * args.num_users:
+        raise RuntimeError("the initial pool should be larger than args.frac * args.num_users")
+    m = args.init_clients # m is the number of clients in the pool
     running_time_record = []
     running_time_all = 0
     for iter in trange(args.epochs):
@@ -162,22 +164,22 @@ if __name__ == '__main__':
         w_glob = {}
         loss_locals = []
 
-        m = min(m * 2, int(args.num_users * args.frac)) if double_c == 0 else m
-        double_c = args.double_freq if double_c == 0 else double_c - 1
 
         if args.resample:
             if args.hyper_setting is "iid-hyper":
                 # generate samples from expotential distribution
                 simulated_running_time = np.random.exponential(1, args.num_users)
             elif args.hyper_setting is "noniid-hyper":
-                simulated_running_time = np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers])
+                simulated_running_time = np.squeeze(np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers]))
             else:
                 raise NotImplementedError
 
 
         running_time_ordering = np.argsort(simulated_running_time)
-        idxs_users = running_time_ordering[:m]
-        running_time_all += np.sort(simulated_running_time)[m-1]
+        users_pool = running_time_ordering[:m]
+        idxs_users = np.random.choice(users_pool, int(args.frac * args.num_users))
+
+        running_time_all += max(np.sort(simulated_running_time)[idxs_users])
 
         if test_flag:
             running_time_record.append(running_time_all)
@@ -227,6 +229,11 @@ if __name__ == '__main__':
             times_in.append( time.time() - start_in )
         loss_avg = sum(loss_locals) / len(loss_locals)
         loss_train.append(loss_avg)
+
+        # decide if we should double the number of clients in the pool
+        m = min(m * 2, args.num_users) if double_c == 1 else m
+        double_c = args.double_freq if double_c == 1 else double_c - 1
+
         # get weighted average for global weights
         for k in net_glob.state_dict().keys():
             w_glob[k] = torch.div(w_glob[k], total_len)
