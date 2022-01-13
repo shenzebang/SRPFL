@@ -135,7 +135,18 @@ if __name__ == '__main__':
     FT_accs10 = 0
     global_accs10 = 0
     start = time.time()
-    simulated_running_time = np.random.exponential(1, args.num_users)
+    if args.hyper_setting is "noniid-hyper":
+        exp_hypers = np.random.uniform(low=args.hyper_low, high=args.hyper_high, size=(args.num_users,))
+    else:
+        raise NotImplementedError
+
+    if args.hyper_setting is "iid-hyper":
+        simulated_running_time = np.random.exponential(1, args.num_users)
+    elif args.hyper_setting is "noniid-hyper":
+        simulated_running_time = np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers])
+    else:
+        raise NotImplementedError
+
     double_c = args.double_freq
     m = args.init_clients
     running_time_record = []
@@ -155,8 +166,15 @@ if __name__ == '__main__':
         double_c = args.double_freq if double_c == 0 else double_c - 1
 
         if args.resample:
-            # generate samples from expotential distribution
-            simulated_running_time = np.random.exponential(1, args.num_users)
+            if args.hyper_setting is "iid-hyper":
+                # generate samples from expotential distribution
+                simulated_running_time = np.random.exponential(1, args.num_users)
+            elif args.hyper_setting is "noniid-hyper":
+                simulated_running_time = np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers])
+            else:
+                raise NotImplementedError
+
+
         running_time_ordering = np.argsort(simulated_running_time)
         idxs_users = running_time_ordering[:m]
         running_time_all += np.sort(simulated_running_time)[m-1]
@@ -260,13 +278,13 @@ if __name__ == '__main__':
     # print(accs)
     times = np.array(running_time_record)
 
-    FT_save_file = f"./save/result-{args.dataset}-{args.shard_per_user}-{args.num_users}-{args.description}-FT-{args.repeat_id}.csv"
+    FT_save_file = f"./save/result-{args.dataset}-{args.shard_per_user}-{args.num_users}-{args.description}-FT-{args.repeat_id}-{args.hyper_setting}.csv"
     FT_accs = np.array(FT_accs)
     FT_accs = pd.DataFrame(np.stack([times, FT_accs], axis=1), columns=['times', 'accs'])
     FT_accs.to_csv(FT_save_file, index=False)
 
     if args.alg == 'fedavg' or args.alg == 'prox':
-        global_save_file = f"./save/result-{args.dataset}-{args.shard_per_user}-{args.num_users}-{args.description}-global-{args.repeat_id}.csv"
+        global_save_file = f"./save/result-{args.dataset}-{args.shard_per_user}-{args.num_users}-{args.description}-global-{args.repeat_id}-{args.hyper_setting}.csv"
         global_accs = np.array(global_accs)
         global_accs = pd.DataFrame(np.stack([times, global_accs], axis=1), columns=['times', 'accs'])
         global_accs.to_csv(global_save_file, index=False)
