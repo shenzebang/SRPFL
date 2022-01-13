@@ -135,15 +135,11 @@ if __name__ == '__main__':
     FT_accs10 = 0
     global_accs10 = 0
     start = time.time()
-    if args.hyper_setting is "noniid-hyper":
+    if args.hyper_setting == "noniid-hyper":
         exp_hypers = np.random.uniform(low=args.hyper_low, high=args.hyper_high, size=(args.num_users,))
-    else:
-        raise NotImplementedError
-
-    if args.hyper_setting is "iid-hyper":
-        simulated_running_time = np.random.exponential(1, args.num_users)
-    elif args.hyper_setting is "noniid-hyper":
         simulated_running_time = np.squeeze(np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers]))
+    elif args.hyper_setting == "iid-hyper":
+        simulated_running_time = np.random.exponential(1, args.num_users)
     else:
         raise NotImplementedError
 
@@ -166,10 +162,10 @@ if __name__ == '__main__':
 
 
         if args.resample:
-            if args.hyper_setting is "iid-hyper":
+            if args.hyper_setting == "iid-hyper":
                 # generate samples from expotential distribution
                 simulated_running_time = np.random.exponential(1, args.num_users)
-            elif args.hyper_setting is "noniid-hyper":
+            elif args.hyper_setting == "noniid-hyper":
                 simulated_running_time = np.squeeze(np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers]))
             else:
                 raise NotImplementedError
