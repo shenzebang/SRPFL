@@ -153,8 +153,6 @@ if __name__ == '__main__':
 
         set_seed(seeds[iter])
 
-
-
         test_flag = iter % args.test_freq == args.test_freq - 1 or iter >= args.epochs - 10
 
         w_glob = {}
@@ -173,9 +171,9 @@ if __name__ == '__main__':
 
         running_time_ordering = np.argsort(simulated_running_time)
         users_pool = running_time_ordering[:m]
-        idxs_users = np.random.choice(users_pool, int(args.frac * args.num_users))
+        idxs_users = np.random.choice(users_pool, int(args.frac * args.num_users), replace=False)
 
-        running_time_all += max(np.sort(simulated_running_time)[idxs_users])
+        running_time_all += max(simulated_running_time[idxs_users])
 
         if test_flag:
             running_time_record.append(running_time_all)
@@ -249,8 +247,8 @@ if __name__ == '__main__':
             FT_acc_test, loss_test = test_fine_tune(net_glob, args, dataset_test, dict_users_test,
                                                          representation_keys=representation_keys,
                                                          dataset_train=dataset_train, dict_users_train=dict_users_train)
-            print('Round {:3d}, FT, Train loss: {:.3f}, Test loss: {:.3f}, Test accuracy: {:.2f}'.format(
-                iter, loss_avg, loss_test, FT_acc_test))
+            print('Round {:3d}, Time {:.3f}, FT, Train loss: {:.3f}, Test loss: {:.3f}, Test accuracy: {:.2f}'.format(
+                iter, running_time_all, loss_avg, loss_test, FT_acc_test))
 
             FT_accs.append(FT_acc_test)
 
@@ -261,8 +259,8 @@ if __name__ == '__main__':
             if args.alg == 'fedavg' or args.alg == 'prox':
                 global_acc_test, loss_test = test_img_local_all(net_glob, args, dataset_test, dict_users_test,
                                                         indd=indd,dataset_train=dataset_train, dict_users_train=dict_users_train, return_all=False)
-                print('Round {:3d}, Global train loss: {:.3f}, Global test loss: {:.3f}, Global test accuracy: {:.2f}'.format(
-                    iter, loss_avg, loss_test, global_acc_test))
+                # print('Round {:3d}, Global train loss: {:.3f}, Global test loss: {:.3f}, Global test accuracy: {:.2f}'.format(
+                #     iter, loss_avg, loss_test, global_acc_test))
 
                 global_accs.append(global_acc_test)
                 if iter >= args.epochs-10:
