@@ -14,6 +14,10 @@ import torch
 
 trans_mnist = transforms.Compose([transforms.ToTensor(),
                                   transforms.Normalize((0.1307,), (0.3081,))])
+
+trans_emnist = transforms.Compose([transforms.ToTensor(),
+                                  transforms.Normalize((0.1307,), (0.3081,))])
+
 trans_cifar10_train = transforms.Compose([transforms.RandomCrop(32, padding=4),
                                           transforms.RandomHorizontalFlip(),
                                           transforms.ToTensor(),
@@ -49,6 +53,12 @@ def get_data(args):
         dataset_test = datasets.CIFAR100('data/cifar100', train=False, download=True, transform=trans_cifar100_val)
         dict_users_train, rand_set_all = noniid(dataset_train, args.num_users, args.shard_per_user, args.num_classes)
         dict_users_test, rand_set_all = noniid(dataset_test, args.num_users, args.shard_per_user, args.num_classes, rand_set_all=rand_set_all, testb=True)
+    elif args.dataset == 'emnist':
+        dataset_train = datasets.EMNIST('data/emnist', train=True, download=True, transform=trans_mnist, split="balanced")
+        dataset_test = datasets.EMNIST('data/emnist', train=False, download=True, transform=trans_mnist, split="balanced")
+        dict_users_train, rand_set_all = noniid(dataset_train, args.num_users, args.shard_per_user, args.num_classes)
+        dict_users_test, rand_set_all = noniid(dataset_test, args.num_users, args.shard_per_user, args.num_classes,
+                                               rand_set_all=rand_set_all, testb=True)
     else:
         raise NotImplementedError
         # exit('Error: unrecognized dataset')

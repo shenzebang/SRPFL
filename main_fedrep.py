@@ -38,7 +38,7 @@ if __name__ == '__main__':
 
 
     lens = np.ones(args.num_users)
-    if 'cifar' in args.dataset or args.dataset == 'mnist':
+    if 'cifar' in args.dataset or args.dataset == 'mnist' or args.dataset == 'emnist':
         dataset_train, dataset_test, dict_users_train, dict_users_test = get_data(args)
         for idx in dict_users_train.keys():
             np.random.shuffle(dict_users_train[idx])
@@ -61,8 +61,6 @@ if __name__ == '__main__':
             dataset_train[c]['y'] = list(np.asarray(dataset_train[c]['y']).astype('int64'))
             dataset_test[c]['y'] = list(np.asarray(dataset_test[c]['y']).astype('int64'))
 
-    print(args.alg)
-
     # build model
     net_glob = get_model(args)
     net_glob.train()
@@ -71,7 +69,7 @@ if __name__ == '__main__':
         net_glob.load_state_dict(torch.load(fed_model_path))
 
     total_num_layers = len(net_glob.state_dict().keys())
-    print(net_glob.state_dict().keys())
+    # print(net_glob.state_dict().keys())
     net_keys = [*net_glob.state_dict().keys()]
 
     # specify the representation parameters (in representation_keys) and head parameters (all others)
@@ -101,9 +99,9 @@ if __name__ == '__main__':
     if 'sent140' not in args.dataset:
         representation_keys = list(itertools.chain.from_iterable(representation_keys))
     
-    print(total_num_layers)
-    print(representation_keys)
-    print(net_keys)
+    # print(total_num_layers)
+    # print(representation_keys)
+    # print(net_keys)
     if args.alg == 'fedrep' or args.alg == 'fedper' or args.alg == 'lg' or args.alg == 'fedavg' or args.alg == 'prox':
         num_param_glob = 0
         num_param_local = 0
@@ -184,16 +182,16 @@ if __name__ == '__main__':
         total_len=0
         for ind, idx in enumerate(idxs_users):
             start_in = time.time()
-            if 'femnist' in args.dataset or 'sent140' in args.dataset:
+            if 'femnist' == args.dataset or 'sent140' == args.dataset:
                 if args.epochs == iter:
                     local = LocalUpdate(args=args, dataset=dataset_train[list(dataset_train.keys())[idx][:args.m_ft]], idxs=dict_users_train, indd=indd)
                 else:
                     local = LocalUpdate(args=args, dataset=dataset_train[list(dataset_train.keys())[idx][:args.m_tr]], idxs=dict_users_train, indd=indd)
             else:
                 if args.epochs == iter:
-                    local = LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users_train[idx][:args.m_ft])
+                    local = LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users_train[idx])
                 else:
-                    local = LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users_train[idx][:args.m_tr])
+                    local = LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users_train[idx])
 
             net_local = copy.deepcopy(net_glob)
             w_local = net_local.state_dict()
@@ -202,7 +200,7 @@ if __name__ == '__main__':
                     w_local[k] = local_heads[idx][k]
             net_local.load_state_dict(w_local)
             last = iter == args.epochs
-            if 'femnist' in args.dataset or 'sent140' in args.dataset:
+            if 'femnist' == args.dataset or 'sent140' == args.dataset:
                 w_local, loss, indd = local.train(net=net_local.to(args.device), ind=idx, idx=clients[idx], representation_keys=representation_keys, lr=args.lr,last=last)
             else:
                 w_local, loss, indd = local.train(net=net_local.to(args.device), idx=idx, representation_keys=representation_keys, lr=args.lr, last=last)
@@ -256,11 +254,11 @@ if __name__ == '__main__':
                 FT_accs10 += FT_acc_test/10
 
             # below prints the global accuracy of the single global model for the relevant algs
-            if args.alg == 'fedavg' or args.alg == 'prox':
+            if args.alg == 'fedavg' or args.alg == 'prox' or True:
                 global_acc_test, loss_test = test_img_local_all(net_glob, args, dataset_test, dict_users_test,
                                                         indd=indd,dataset_train=dataset_train, dict_users_train=dict_users_train, return_all=False)
-                # print('Round {:3d}, Global train loss: {:.3f}, Global test loss: {:.3f}, Global test accuracy: {:.2f}'.format(
-                #     iter, loss_avg, loss_test, global_acc_test))
+                print('Round {:3d}, Global train loss: {:.3f}, Global test loss: {:.3f}, Global test accuracy: {:.2f}'.format(
+                    iter, loss_avg, loss_test, global_acc_test))
 
                 global_accs.append(global_acc_test)
                 if iter >= args.epochs-10:

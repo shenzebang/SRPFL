@@ -7,7 +7,7 @@ import torch.nn as nn
 from models.test import test_img_local
 
 
-def test_fine_tune(net, args, dataset_test, dict_users_test, representation_keys, dataset_train, dict_users_train):
+def test_fine_tune(net, args, dataset_test, dict_users_test, representation_keys, dataset_train, dict_users_train, indd=None):
     tot = 0
     num_idxxs = args.num_users
     acc_test_local = np.zeros(num_idxxs)
@@ -32,23 +32,39 @@ def test_fine_tune(net, args, dataset_test, dict_users_test, representation_keys
 
         # fine tune the head
         net_local.train()
-        fine_tune(net_local, args, dataset_train, dict_users_train[idx], representation_keys)
+        if args.dataset == 'cifar10' or args.dataset == 'cifar100' or args.dataset == 'emnist':
+            dataloader = DataLoader(DatasetSplit(dataset_train, dict_users_train[idx]), batch_size=args.local_bs, shuffle=True)
+        elif args.dataset == "femnist":
+            dataset_train_idx = dataset_train[list(dataset_train.keys())[idx]]
+            dataloader = DataLoader(DatasetSplit(dataset_train_idx, np.ones(len(dataset_train_idx['x'])),name=args.dataset), batch_size=args.local_bs, shuffle=True)
+        else:
+            raise NotImplementedError
+
+        fine_tune(net_local, args, dataloader, representation_keys)
 
         # test
 
         net_local.eval()
 
-        a, b = test_img_local(net_local, dataset_test, args, user_idx=idx, idxs=dict_users_test[idx])
-        tot += len(dict_users_test[idx])
+        if 'femnist' in args.dataset or 'sent140' in args.dataset:
+            a, b =  test_img_local(net_local, dataset_test, args,idx=dict_users_test[idx],indd=indd, user_idx=idx)
+            tot += len(dataset_test[dict_users_test[idx]]['x'])
+        else:
+            a, b = test_img_local(net_local, dataset_test, args, user_idx=idx, idxs=dict_users_test[idx])
+            tot += len(dict_users_test[idx])
 
-        acc_test_local[idx] = a * len(dict_users_test[idx])
-        loss_test_local[idx] = b * len(dict_users_test[idx])
+        if 'femnist' in args.dataset or 'sent140' in args.dataset:
+            acc_test_local[idx] = a*len(dataset_test[dict_users_test[idx]]['x'])
+            loss_test_local[idx] = b*len(dataset_test[dict_users_test[idx]]['x'])
+        else:
+            acc_test_local[idx] = a*len(dict_users_test[idx])
+            loss_test_local[idx] = b*len(dict_users_test[idx])
+
 
 
     return sum(acc_test_local) / tot, sum(loss_test_local) / tot
 
-def fine_tune(net, args, dataset_train, users_train, representation_keys):
-    dataloader = DataLoader(DatasetSplit(dataset_train, users_train), batch_size=args.local_bs, shuffle=True)
+def fine_tune(net, args, dataloader, representation_keys):
     bias_p = []
     weight_p = []
     for name, p in net.named_parameters():

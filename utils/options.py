@@ -53,7 +53,7 @@ def args_parser():
     parser.add_argument('--double_freq', type=int, default=10, help="how often to double the participated clients")
 
     # other arguments
-    parser.add_argument('--dataset', type=str, default='mnist', help="name of dataset")
+    parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'emnist'], help="name of dataset")
     parser.add_argument('--iid', action='store_true', help='whether i.i.d or not')
     parser.add_argument('--num_classes', type=int, default=10, help="number of classes")
     parser.add_argument('--num_channels', type=int, default=3, help="number of channels of imges")
