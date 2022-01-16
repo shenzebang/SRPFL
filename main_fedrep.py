@@ -142,8 +142,6 @@ if __name__ == '__main__':
         raise NotImplementedError
 
     double_c = args.double_freq
-    if args.init_clients < args.frac * args.num_users:
-        raise RuntimeError("the initial pool should be larger than args.frac * args.num_users")
     m = args.init_clients # m is the number of clients in the pool
     running_time_record = []
     running_time_all = 0
@@ -169,7 +167,7 @@ if __name__ == '__main__':
 
         running_time_ordering = np.argsort(simulated_running_time)
         users_pool = running_time_ordering[:m]
-        idxs_users = np.random.choice(users_pool, int(args.frac * args.num_users), replace=False)
+        idxs_users = np.random.choice(users_pool, min(m, int(args.frac * args.num_users)), replace=False)
 
         running_time_all += max(simulated_running_time[idxs_users])
 
