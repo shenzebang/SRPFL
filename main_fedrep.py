@@ -252,11 +252,11 @@ if __name__ == '__main__':
                 FT_accs10 += FT_acc_test/10
 
             # below prints the global accuracy of the single global model for the relevant algs
-            if args.alg == 'fedavg' or args.alg == 'prox' or True:
+            if args.alg == 'fedavg' or args.alg == 'prox':
                 global_acc_test, loss_test = test_img_local_all(net_glob, args, dataset_test, dict_users_test,
                                                         indd=indd,dataset_train=dataset_train, dict_users_train=dict_users_train, return_all=False)
-                print('Round {:3d}, Global train loss: {:.3f}, Global test loss: {:.3f}, Global test accuracy: {:.2f}'.format(
-                    iter, loss_avg, loss_test, global_acc_test))
+                # print('Round {:3d}, Global train loss: {:.3f}, Global test loss: {:.3f}, Global test accuracy: {:.2f}'.format(
+                #     iter, loss_avg, loss_test, global_acc_test))
 
                 global_accs.append(global_acc_test)
                 if iter >= args.epochs-10:
