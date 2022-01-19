@@ -32,7 +32,7 @@ def test_fine_tune(net, args, dataset_test, dict_users_test, representation_keys
 
         # fine tune the head
         net_local.train()
-        if args.dataset == 'cifar10' or args.dataset == 'cifar100' or args.dataset == 'emnist':
+        if args.dataset == 'cifar10' or args.dataset == 'cifar100' or args.dataset == 'emnist' or args.dataset == 'mnist':
             dataloader = DataLoader(DatasetSplit(dataset_train, dict_users_train[idx]), batch_size=args.local_bs, shuffle=True)
         elif args.dataset == "femnist":
             dataset_train_idx = dataset_train[list(dataset_train.keys())[idx]]
