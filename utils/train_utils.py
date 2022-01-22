@@ -119,10 +119,10 @@ def get_model(args):
     elif args.model == 'mlp' and 'cifar' in args.dataset:
         net_glob = MLP(dim_in=3072, dim_hidden=512, dim_out=args.num_classes).to(args.device)
     elif 'sent140' in args.dataset:
-        net_glob = model = RNNSent(args,'LSTM', 2, 25, 128, 1, 0.5, tie_weights=False).to(args.device)
+        net_glob = RNNSent(args,'LSTM', 2, 25, 128, 1, 0.5, tie_weights=False).to(args.device)
     else:
         exit('Error: unrecognized model')
-    print(net_glob)
+    # print(net_glob)
 
     return net_glob
 

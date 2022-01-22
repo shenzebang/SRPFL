@@ -70,5 +70,7 @@ def args_parser():
     parser.add_argument('--hyper_setting', type=str, default='iid-hyper', choices=['iid-hyper', 'noniid-hyper'])
     parser.add_argument('--hyper_high', type=float, default='10')
     parser.add_argument('--hyper_low', type=float, default='1')
+
+    parser.add_argument('--FedPD_eta', type=float, default='10')
     args = parser.parse_args()
     return args

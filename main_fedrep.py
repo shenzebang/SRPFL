@@ -102,18 +102,18 @@ if __name__ == '__main__':
     # print(total_num_layers)
     # print(representation_keys)
     # print(net_keys)
-    if args.alg == 'fedrep' or args.alg == 'fedper' or args.alg == 'lg' or args.alg == 'fedavg' or args.alg == 'prox':
-        num_param_glob = 0
-        num_param_local = 0
-        for key in net_glob.state_dict().keys():
-            num_param_local += net_glob.state_dict()[key].numel()
-            print(num_param_local)
-            if key in representation_keys:
-                num_param_glob += net_glob.state_dict()[key].numel()
-        percentage_param = 100 * float(num_param_glob) / num_param_local
-        print('# Params: {} (local), {} (global); Percentage {:.2f} ({}/{})'.format(
-            num_param_local, num_param_glob, percentage_param, num_param_glob, num_param_local))
-    print("learning rate, batch size: {}, {}".format(args.lr, args.local_bs))
+    # if args.alg == 'fedrep' or args.alg == 'fedper' or args.alg == 'lg' or args.alg == 'fedavg' or args.alg == 'prox':
+    #     num_param_glob = 0
+    #     num_param_local = 0
+    #     for key in net_glob.state_dict().keys():
+    #         num_param_local += net_glob.state_dict()[key].numel()
+    #         print(num_param_local)
+    #         if key in representation_keys:
+    #             num_param_glob += net_glob.state_dict()[key].numel()
+    #     percentage_param = 100 * float(num_param_glob) / num_param_local
+    #     print('# Params: {} (local), {} (global); Percentage {:.2f} ({}/{})'.format(
+    #         num_param_local, num_param_glob, percentage_param, num_param_glob, num_param_local))
+    # print("learning rate, batch size: {}, {}".format(args.lr, args.local_bs))
 
     # generate list of local heads for each user
     local_heads = {}
@@ -197,11 +197,10 @@ if __name__ == '__main__':
                 for k in local_heads[idx].keys():
                     w_local[k] = local_heads[idx][k]
             net_local.load_state_dict(w_local)
-            last = iter == args.epochs
             if 'femnist' == args.dataset or 'sent140' == args.dataset:
-                w_local, loss, indd = local.train(net=net_local.to(args.device), ind=idx, idx=clients[idx], representation_keys=representation_keys, lr=args.lr,last=last)
+                w_local, loss, indd = local.train(net=net_local.to(args.device), ind=idx, idx=clients[idx], representation_keys=representation_keys, lr=args.lr)
             else:
-                w_local, loss, indd = local.train(net=net_local.to(args.device), idx=idx, representation_keys=representation_keys, lr=args.lr, last=last)
+                w_local, loss, indd = local.train(net=net_local.to(args.device), idx=idx, representation_keys=representation_keys, lr=args.lr)
             loss_locals.append(copy.deepcopy(loss))
             total_len += lens[idx]
             if len(w_glob) == 0:

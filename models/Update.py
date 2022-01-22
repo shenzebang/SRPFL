@@ -13,6 +13,7 @@ import numpy as np
 import time
 import copy
 import FedProx
+import torch.nn.functional as F
 
 from models.test import test_img_local
 from models.language_utils import get_word_emb_arr, repackage_hidden, process_x, process_y 
@@ -182,6 +183,77 @@ class LocalUpdateMAML(object):
                 
             epoch_loss.append(sum(batch_loss)/len(batch_loss))
         return net.state_dict(), sum(epoch_loss) / len(epoch_loss), self.indd#, num_updates
+
+class LocalUpdateFedPD:
+    def __init__(self, args, dataset=None, idxs=None):
+        self.args = args
+        self.loss_func = nn.CrossEntropyLoss()
+        self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.local_bs, shuffle=True)
+
+    def train(self, net, lambdai):
+        net_local = copy.deepcopy(net)
+        net_local.requires_grad_(True)
+        net.requires_grad_(False)
+        bias_p = []
+        weight_p = []
+        for name, p in net_local.named_parameters():
+            if 'bias' in name:
+                bias_p += [p]
+            else:
+                weight_p += [p]
+        optimizer = torch.optim.SGD(
+            [
+                {'params': weight_p, 'weight_decay': 0.0001},
+                {'params': bias_p, 'weight_decay': 0}
+            ],
+            lr=self.args.lr, momentum=self.args.momentum
+        )
+
+        local_eps = self.args.local_ep
+
+        total_samples = 0
+        total_loss = 0
+
+        state_dict_local = net_local.state_dict()
+        state_dict_global = net.state_dict()
+
+        for iter in range(local_eps):
+            for batch_idx, (images, labels) in enumerate(self.ldr_train):
+                images, labels = images.to(self.args.device), labels.to(self.args.device)
+                net_local.zero_grad()
+                log_probs = net_local(images)
+                loss = self.loss_func(log_probs, labels)
+
+                total_loss += loss.item()
+                total_samples += len(labels)
+
+                # add the linear penalty
+                linear_penalty = 0.
+                for key in state_dict_local.keys():
+                    linear_penalty += torch.sum(state_dict_local[key] * lambdai[key])
+                loss += linear_penalty
+
+                quad_penalty = 0.
+                for key in state_dict_local.keys():
+                    quad_penalty += F.mse_loss(state_dict_local[key], state_dict_global[key], reduction='sum')
+
+                loss += quad_penalty / 2. / self.args.FedPD_eta
+
+
+                loss.backward()
+                optimizer.step()
+
+        # update the dual variable
+        with torch.autograd.no_grad():
+            for key in state_dict_local.keys():
+                lambdai[key] += (state_dict_local[key] - state_dict_global[key])/self.args.FedPD_eta
+
+            for key in state_dict_local.keys():
+                state_dict_local[key] += self.args.FedPD_eta * lambdai[key]
+
+        return state_dict_local, lambdai, total_loss/total_samples
+
+
 
 
 class LocalUpdateScaffold(object):
@@ -571,7 +643,9 @@ class LocalUpdate(object):
                              nesterov = False,
                              weight_decay = 1e-4)
 
-        if self.args.alg == "fedrep":
+        is_representation_learning = self.args.alg == "fedrep" or self.args.alg == 'lg'
+
+        if is_representation_learning:
             local_eps = self.args.local_rep_ep * (self.args.head_ep_per_rep_update+1)
         else:
             local_eps = self.args.local_ep
@@ -600,7 +674,7 @@ class LocalUpdate(object):
             done = False
             flag_update_head = iter % (1+self.args.head_ep_per_rep_update) != self.args.head_ep_per_rep_update
             # for FedRep, first do local epochs for the head
-            if (flag_update_head and self.args.alg == 'fedrep') or last:
+            if (flag_update_head and is_representation_learning ):
                 for name, param in net.named_parameters():
                     if name in representation_keys:
                         param.requires_grad = False
@@ -608,7 +682,7 @@ class LocalUpdate(object):
                         param.requires_grad = True
             
             # then do local epochs for the representation
-            elif not flag_update_head and self.args.alg == 'fedrep' and not last:
+            elif not flag_update_head and is_representation_learning:
                 for name, param in net.named_parameters():
                     if name in representation_keys:
                         param.requires_grad = True
@@ -616,7 +690,7 @@ class LocalUpdate(object):
                         param.requires_grad = False
 
             # all other methods update all parameters simultaneously
-            elif self.args.alg != 'fedrep':
+            elif not is_representation_learning:
                 for name, param in net.named_parameters():
                      param.requires_grad = True 
        

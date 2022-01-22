@@ -24,7 +24,7 @@ if __name__ == '__main__':
     args.device = torch.device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() and args.gpu != -1 else 'cpu')
 
     lens = np.ones(args.num_users)
-    if 'cifar' in args.dataset or args.dataset == 'mnist':
+    if args.dataset == 'cifar10' or args.dataset == 'cifar100' or args.dataset == 'mnist' or args.dataset == 'emnist':
         dataset_train, dataset_test, dict_users_train, dict_users_test = get_data(args)
         for idx in dict_users_train.keys():
             np.random.shuffle(dict_users_train[idx])
