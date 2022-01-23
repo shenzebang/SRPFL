@@ -643,7 +643,7 @@ class LocalUpdate(object):
                              nesterov = False,
                              weight_decay = 1e-4)
 
-        is_representation_learning = self.args.alg == "fedrep" or self.args.alg == 'lg'
+        is_representation_learning = self.args.alg == "fedrep"
 
         if is_representation_learning:
             local_eps = self.args.local_rep_ep * (self.args.head_ep_per_rep_update+1)
