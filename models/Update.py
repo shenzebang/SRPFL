@@ -643,9 +643,9 @@ class LocalUpdate(object):
                              nesterov = False,
                              weight_decay = 1e-4)
 
-        is_representation_learning = self.args.alg == "fedrep"
+        is_alternating_update = self.args.alg == "fedrep"
 
-        if is_representation_learning:
+        if is_alternating_update:
             local_eps = self.args.local_rep_ep * (self.args.head_ep_per_rep_update+1)
         else:
             local_eps = self.args.local_ep
@@ -674,7 +674,7 @@ class LocalUpdate(object):
             done = False
             flag_update_head = iter % (1+self.args.head_ep_per_rep_update) != self.args.head_ep_per_rep_update
             # for FedRep, first do local epochs for the head
-            if (flag_update_head and is_representation_learning ):
+            if flag_update_head and is_alternating_update:
                 for name, param in net.named_parameters():
                     if name in representation_keys:
                         param.requires_grad = False
@@ -682,7 +682,7 @@ class LocalUpdate(object):
                         param.requires_grad = True
             
             # then do local epochs for the representation
-            elif not flag_update_head and is_representation_learning:
+            elif not flag_update_head and is_alternating_update:
                 for name, param in net.named_parameters():
                     if name in representation_keys:
                         param.requires_grad = True
@@ -690,7 +690,7 @@ class LocalUpdate(object):
                         param.requires_grad = False
 
             # all other methods update all parameters simultaneously
-            elif not is_representation_learning:
+            elif not is_alternating_update:
                 for name, param in net.named_parameters():
                      param.requires_grad = True 
        
@@ -726,6 +726,78 @@ class LocalUpdate(object):
             
             epoch_loss.append(sum(batch_loss) / len(batch_loss))
         return net.state_dict(), sum(epoch_loss) / len(epoch_loss), self.indd
+
+
+class LocalUpdateNova(object):
+    def __init__(self, args, dataset=None, idxs=None, indd=None):
+        self.args = args
+        self.loss_func = nn.CrossEntropyLoss()
+        if 'femnist' in args.dataset or 'sent140' in args.dataset:
+            self.ldr_train = DataLoader(DatasetSplit(dataset, np.ones(len(dataset['x'])), name=self.args.dataset),
+                                        batch_size=self.args.local_bs, shuffle=True)
+        else:
+            self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.local_bs, shuffle=True)
+
+        if 'sent140' in self.args.dataset and indd == None:
+            VOCAB_DIR = 'models/embs.json'
+            _, self.indd, vocab = get_word_emb_arr(VOCAB_DIR)
+            self.vocab_size = len(vocab)
+        elif indd is not None:
+            self.indd = indd
+        else:
+            self.indd = None
+
+        self.dataset = dataset
+        self.idxs = idxs
+
+    def train(self, net_global, local_ep, lr=0.1):
+        bias_p = []
+        weight_p = []
+        net_local = copy.deepcopy(net_global)
+        for name, p in net_local.named_parameters():
+            if 'bias' in name:
+                bias_p += [p]
+            else:
+                weight_p += [p]
+        optimizer = torch.optim.SGD(
+            [
+                {'params': weight_p, 'weight_decay': 0.0001},
+                {'params': bias_p, 'weight_decay': 0}
+            ],
+            lr=lr, momentum=self.args.momentum
+        )
+
+
+        local_eps = local_ep
+
+        epoch_loss = []
+        num_updates = 0
+
+        for name, param in net_local.named_parameters():
+                param.requires_grad = True
+
+        total_samples = 0
+        total_loss = 0
+        for iter in range(local_eps):
+            batch_loss = []
+            for batch_idx, (images, labels) in enumerate(self.ldr_train):
+                images, labels = images.to(self.args.device), labels.to(self.args.device)
+                net_local.zero_grad()
+                log_probs = net_local(images)
+                loss = self.loss_func(log_probs, labels)
+                total_samples += len(labels)
+                total_loss += loss.item()
+                loss.backward()
+                optimizer.step()
+                num_updates += 1
+
+        sdl = net_local.state_dict()
+        sdg = net_global.state_dict()
+        for key in sdl.keys():
+            sdl[key] -= sdg[key]
+
+        return sdl, total_loss/total_samples, self.indd
+
 
 class LocalUpdateMTL(object):
     def __init__(self, args, dataset=None, idxs=None,indd=None):
