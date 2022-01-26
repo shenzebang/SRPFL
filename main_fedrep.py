@@ -142,7 +142,7 @@ if __name__ == '__main__':
         raise NotImplementedError
 
     double_c = args.double_freq
-    m = args.init_clients # m is the number of clients in the pool
+    m = min(args.num_users, args.init_clients) # m is the number of clients in the pool
     running_time_record = []
     running_time_all = 0
     for iter in trange(args.epochs):
@@ -154,15 +154,18 @@ if __name__ == '__main__':
         w_glob = {}
         loss_locals = []
 
-
-        if args.resample:
-            if args.hyper_setting == "iid-hyper":
-                # generate samples from expotential distribution
+        if args.hyper_setting == "iid-hyper":
+            if args.resample:
+                # regenerate samples from expotential distribution
                 simulated_running_time = np.random.exponential(1, args.num_users)
-            elif args.hyper_setting == "noniid-hyper":
-                simulated_running_time = np.squeeze(np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers]))
-            else:
-                raise NotImplementedError
+        elif args.hyper_setting == "noniid-hyper":
+            if args.resample:
+                exp_hypers = np.random.uniform(low=args.hyper_low, high=args.hyper_high, size=(args.num_users,))
+            simulated_running_time = np.squeeze(np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers]))
+        else:
+            raise NotImplementedError
+
+
 
 
         running_time_ordering = np.argsort(simulated_running_time)
