@@ -25,7 +25,7 @@ import time
 
 import ray
 
-@ray.remote(num_gpus=.12)
+@ray.remote(num_gpus=.14)
 def ray_dispatch(local, net, idx, representation_keys, lr):
     return local_update(local, net, idx, representation_keys, lr)
 
