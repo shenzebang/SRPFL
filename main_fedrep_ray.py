@@ -217,7 +217,6 @@ if __name__ == '__main__':
             if len(w_glob) == 0:
                 w_glob = copy.deepcopy(w_local)
                 for key in net_glob.state_dict().keys():
-                    w_glob[key] = w_glob[key]
                     if key not in representation_keys:
                         local_heads[idx][key] = w_local[key]
             else:
@@ -242,7 +241,7 @@ if __name__ == '__main__':
 
         # get weighted average for global weights
         for k in net_glob.state_dict().keys():
-            w_glob[k] = torch.div(w_glob[k], total_len)
+            w_glob[k] = torch.div(w_glob[k], len(idxs_users))
 
         w_local = net_glob.state_dict()
         for k in w_glob.keys():
