@@ -17,7 +17,7 @@ from torch import nn
 
 from utils.options import args_parser
 from utils.train_utils import get_data, get_model, read_data, set_seed
-from utils.test_utils import test_fine_tune
+from utils.test_utils import test_fine_tune, test_fine_tune_ray
 from models.Update import LocalUpdate
 from models.test import test_img_local_all
 from tqdm import tqdm, trange
@@ -250,7 +250,13 @@ if __name__ == '__main__':
             net_glob.load_state_dict(w_glob)
 
         if test_flag:
-            FT_acc_test, loss_test = test_fine_tune(net_glob, args, dataset_test, dict_users_test,
+
+            if args.ray_test:
+                FT_acc_test, loss_test = test_fine_tune_ray(net_glob, args, dataset_test, dict_users_test,
+                                                        representation_keys=representation_keys,
+                                                        dataset_train=dataset_train, dict_users_train=dict_users_train)
+            else:
+                FT_acc_test, loss_test = test_fine_tune(net_glob, args, dataset_test, dict_users_test,
                                                          representation_keys=representation_keys,
                                                          dataset_train=dataset_train, dict_users_train=dict_users_train)
             print('Round {:3d}, Time {:.3f}, FT, Train loss: {:.3f}, Test loss: {:.3f}, Test accuracy: {:.2f}'.format(

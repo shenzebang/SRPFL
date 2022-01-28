@@ -65,11 +65,13 @@ def args_parser():
     parser.add_argument('--save_every', type=int, default=50, help='how often to save models')
 
     parser.add_argument('--description', type=str, default='None', help='describe the setting')
+    parser.add_argument('--ray_test',  action='store_true')
     parser.add_argument('--repeat_id', type=int, default=0, help='the repeat id of the run')
     parser.add_argument('--FT_epoch', type=int, default=10, help='the number of epoch for fine tuning')
     parser.add_argument('--hyper_setting', type=str, default='iid-hyper', choices=['iid-hyper', 'noniid-hyper'])
     parser.add_argument('--hyper_high', type=float, default='100')
     parser.add_argument('--hyper_low', type=float, default='1')
+
 
     parser.add_argument('--FedPD_eta', type=float, default='10')
     args = parser.parse_args()

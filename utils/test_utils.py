@@ -7,6 +7,39 @@ import torch.nn as nn
 from models.test import test_img_local
 
 
+import ray
+
+@ray.remote(num_gpus=.1)
+def ray_dispatch(args, net, dataloader, representation_keys):
+    fine_tune(net, args, dataloader, representation_keys)
+    return net
+
+
+def test_fine_tune_ray(net, args, dataset_test, dict_users_test, representation_keys, dataset_train, dict_users_train, indd=None):
+    tot = 0
+    acc_test_local = np.zeros(args.num_users)
+    loss_test_local = np.zeros(args.num_users)
+
+    net_locals = [copy.deepcopy(net) for _ in range(args.num_users)]
+    dataloaders = [DataLoader(DatasetSplit(dataset_train, dict_users_train[idx]), batch_size=args.local_bs, shuffle=True)
+                   for idx in range(args.num_users)]
+
+    net_locals = ray.get([ray_dispatch.remote(args, net_local, dataloader, representation_keys)
+                          for net_local, dataloader in zip(net_locals, dataloaders)])
+
+
+
+    for idx, net_local in enumerate(net_locals):
+        a, b = test_img_local(net_local, dataset_test, args, user_idx=idx, idxs=dict_users_test[idx])
+        tot += len(dict_users_test[idx])
+        acc_test_local[idx] = a*len(dict_users_test[idx])
+        loss_test_local[idx] = b*len(dict_users_test[idx])
+
+
+
+    return sum(acc_test_local) / tot, sum(loss_test_local) / tot
+
+
 def test_fine_tune(net, args, dataset_test, dict_users_test, representation_keys, dataset_train, dict_users_train, indd=None):
     tot = 0
     num_idxxs = args.num_users
