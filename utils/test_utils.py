@@ -5,14 +5,14 @@ from models.Update import DatasetSplit
 import torch
 import torch.nn as nn
 from models.test import test_img_local
-
+import time
 
 import ray
+import os
 
-@ray.remote(num_gpus=.1)
+@ray.remote(num_gpus=.14)
 def ray_dispatch(args, net, dataloader, representation_keys):
-    fine_tune(net, args, dataloader, representation_keys)
-    return net
+    return fine_tune(net, args, dataloader, representation_keys)
 
 
 def test_fine_tune_ray(net, args, dataset_test, dict_users_test, representation_keys, dataset_train, dict_users_train, indd=None):
@@ -24,9 +24,10 @@ def test_fine_tune_ray(net, args, dataset_test, dict_users_test, representation_
     dataloaders = [DataLoader(DatasetSplit(dataset_train, dict_users_train[idx]), batch_size=args.local_bs, shuffle=True)
                    for idx in range(args.num_users)]
 
+    time_FT = time.time()
     net_locals = ray.get([ray_dispatch.remote(args, net_local, dataloader, representation_keys)
                           for net_local, dataloader in zip(net_locals, dataloaders)])
-
+    print("time FT is {}".format(time.time() - time_FT))
 
 
     for idx, net_local in enumerate(net_locals):
@@ -119,3 +120,54 @@ def fine_tune(net, args, dataloader, representation_keys):
             loss = loss_func(log_probs, labels)
             loss.backward()
             optimizer.step()
+
+    return net
+
+
+
+
+# ====== TEST MODULE OF HF-MAML ======
+def test_MAML(net: nn.Module, args, dataset_test, dict_users_test, dataset_train, dict_users_train):
+    tot = 0
+    loss_func = nn.CrossEntropyLoss()
+    num_idxxs = args.num_users
+    acc_test_local = np.zeros(num_idxxs)
+    loss_test_local = np.zeros(num_idxxs)
+    sd = net.state_dict()
+
+
+    for idx in range(num_idxxs):
+
+        sd_idx = copy.copy(sd)
+
+        # take a gradient step
+
+        if args.dataset == 'cifar10' or args.dataset == 'cifar100' or args.dataset == 'emnist' or args.dataset == 'mnist':
+            dataloader = DataLoader(DatasetSplit(dataset_train, dict_users_train[idx]), batch_size=args.local_bs, shuffle=True)
+        else:
+            raise NotImplementedError
+
+        for batch_idx, (images, labels) in enumerate(dataloader):
+            images, labels = images.to(args.device), labels.to(args.device)
+            net.zero_grad()
+            log_probs = net(images)
+            loss = loss_func(log_probs, labels)
+            _grad = torch.autograd.grad(loss, net.parameters())
+            break
+
+        for i, key in enumerate(sd_idx):
+            sd_idx[key] = sd_idx[key] - args.HFMAML_alpha * _grad[i]
+
+        net.load_state_dict(sd_idx)
+        # test
+
+        a, b = test_img_local(net, dataset_test, args, user_idx=idx, idxs=dict_users_test[idx])
+        tot += len(dict_users_test[idx])
+
+
+        acc_test_local[idx] = a*len(dict_users_test[idx])
+        loss_test_local[idx] = b*len(dict_users_test[idx])
+
+
+
+    return sum(acc_test_local) / tot, sum(loss_test_local) / tot

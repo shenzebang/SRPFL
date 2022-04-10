@@ -36,8 +36,6 @@ def args_parser():
     parser.add_argument('--alg', type=str, default='fedavg', help='FL algorithm to use')
     
     # algorithm-specific hyperparameters
-    parser.add_argument('--local_rep_ep', type=int, default=1, help="the number of local epochs for the representation for FedRep")
-    parser.add_argument('--head_ep_per_rep_update', type=int, default=10, help="the number of local epochs for the head per representation epoch for FedRep")
     parser.add_argument('--lr_g', type=float, default=0.1, help="global learning rate for SCAFFOLD")
     parser.add_argument('--mu', type=float, default='0.1', help='FedProx parameter mu')
     parser.add_argument('--gmf', type=float, default='0', help='FedProx parameter gmf')
@@ -57,7 +55,7 @@ def args_parser():
     parser.add_argument('--iid', action='store_true', help='whether i.i.d or not')
     parser.add_argument('--num_classes', type=int, default=10, help="number of classes")
     parser.add_argument('--num_channels', type=int, default=3, help="number of channels of imges")
-    parser.add_argument('--gpu', type=int, default=0, help="GPU ID, -1 for CPU")
+    parser.add_argument('--gpu', type=str, default='0', help="GPU ID, -1 for CPU")
     parser.add_argument('--seed', type=int, default=1, help='random seed (default: 1)')
     parser.add_argument('--test_freq', type=int, default=1, help='how often to test on val set')
     parser.add_argument('--load_fed', type=str, default='n', help='define pretrained federated model path')
@@ -67,12 +65,35 @@ def args_parser():
     parser.add_argument('--description', type=str, default='None', help='describe the setting')
     parser.add_argument('--ray_test',  action='store_true')
     parser.add_argument('--repeat_id', type=int, default=0, help='the repeat id of the run')
-    parser.add_argument('--FT_epoch', type=int, default=10, help='the number of epoch for fine tuning')
+
     parser.add_argument('--hyper_setting', type=str, default='iid-hyper', choices=['iid-hyper', 'noniid-hyper'])
     parser.add_argument('--hyper_high', type=float, default='100')
     parser.add_argument('--hyper_low', type=float, default='1')
 
 
+
+    # Arguments for Fine Tuning during testing
+    parser.add_argument('--FT_epoch', type=int, default=10, help='the number of epoch for fine tuning')
+
+    # Arguments for FEDREP
+    parser.add_argument('--FEDREP_local_rep_ep', type=int, default=1,
+                        help="the number of local epochs for the representation for FedRep")
+    parser.add_argument('--FEDREP_head_ep_per_rep_update', type=int, default=10,
+                        help="the number of local epochs for the head per representation epoch for FedRep")
+
+    # Arguments for FEDAVG
+    parser.add_argument('--FEDAVG_local_ep', type=int, default=1)
+
+    # Arguments for HF-MAML
+    parser.add_argument('--HFMAML_alpha', type=float, default=1e-2)
+    parser.add_argument('--HFMAML_beta', type=float, default=1.)
+    parser.add_argument('--HFMAML_delta', type=float, default=1e-3)
+    parser.add_argument('--HFMAML_local_bs', type=int, default=10)
+    parser.add_argument('--HFMAML_local_ep', type=int, default=5)
+
+
+    # Arguments for FedPD
     parser.add_argument('--FedPD_eta', type=float, default='10')
+
     args = parser.parse_args()
     return args
