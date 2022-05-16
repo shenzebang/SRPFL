@@ -20,7 +20,7 @@ from utils.train_utils import get_data, get_model, read_data, set_seed
 from utils.test_utils import test_MAML
 from models.Update import LocalUpdateHFMAML
 from tqdm import tqdm, trange
-import time
+import time, os
 
 if __name__ == '__main__':
     # parse args
@@ -57,6 +57,15 @@ if __name__ == '__main__':
         simulated_running_time = np.squeeze(np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers]))
     elif args.hyper_setting == "iid-hyper":
         simulated_running_time = np.random.exponential(1, args.num_users)
+        # This is added only for the purpose of ICML rebuttal
+        if args.reserve:
+            simulated_running_time = np.sort(simulated_running_time)
+            simulated_running_time_not_reserved = simulated_running_time[:int(0.8 * args.num_users)]
+            simulated_running_time_reserved = simulated_running_time[int(0.8 * args.num_users):]
+            np.random.shuffle(simulated_running_time_not_reserved)
+            np.random.shuffle(simulated_running_time_reserved)
+            simulated_running_time = np.concatenate(
+                [simulated_running_time_not_reserved, simulated_running_time_reserved])
     else:
         raise NotImplementedError
 
@@ -135,10 +144,14 @@ if __name__ == '__main__':
                                                    dataset_train=dataset_train, dict_users_train=dict_users_train)
 
             print(f'Testing accuracy: {global_acc_test}')
+            global_accs.append(global_acc_test)
 
     times = np.array(running_time_record)
+    save_dir = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}"
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
-    global_save_file = f"./save/result-{args.dataset}-{args.shard_per_user}-{args.num_users}-{args.description}-global-{args.repeat_id}-{args.hyper_setting}.csv"
+    global_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/HFMAML-{args.description}-global-{args.repeat_id}-{args.hyper_setting}.csv"
     global_accs = np.array(global_accs)
     global_accs = pd.DataFrame(np.stack([times, global_accs], axis=1), columns=['times', 'accs'])
     global_accs.to_csv(global_save_file, index=False)

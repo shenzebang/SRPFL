@@ -1090,6 +1090,95 @@ class LocalUpdateHFMAML:
 
         return sd, 0.
 
+# local update class for LG
+class LocalUpdateLG(object):
+    def __init__(self, args, dataset, idxs, representation_keys):
+        self.args = args
+        self.loss_func = nn.CrossEntropyLoss()
+        self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.local_bs, shuffle=True)
+        self.representation_keys = representation_keys
+        self.dataset = dataset
+        self.idxs = idxs
 
+    def train(self, net):
+        bias_p = []
+        weight_p = []
+        for name, p in net.named_parameters():
+            if 'bias' in name:
+                bias_p += [p]
+            else:
+                weight_p += [p]
+        optimizer = torch.optim.SGD(
+            [
+                {'params': weight_p, 'weight_decay': 0.0001},
+                {'params': bias_p, 'weight_decay': 0}
+            ],
+            lr=self.args.LG_lr
+        )
 
+        local_eps = self.args.LG_local_ep
 
+        epoch_loss = []
+
+        for name, param in net.named_parameters():
+            param.requires_grad = True
+
+        for iter in range(local_eps):
+            batch_loss = []
+            for batch_idx, (images, labels) in enumerate(self.ldr_train):
+                images, labels = images.to(self.args.device), labels.to(self.args.device)
+                net.zero_grad()
+                log_probs = net(images)
+                loss = self.loss_func(log_probs, labels)
+                loss.backward()
+                optimizer.step()
+                batch_loss.append(loss.item())
+            epoch_loss.append(sum(batch_loss) / len(batch_loss))
+
+        return net.state_dict(), sum(epoch_loss) / len(epoch_loss)
+
+# local update class for FEDME
+class LocalUpdateFEDME:
+    def __init__(self, args, dataset, idxs):
+        # define the dataloaders for training
+        self.args = args
+        self.loss_func = nn.CrossEntropyLoss()
+        self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.HFMAML_local_bs, shuffle=True)
+        self.idxs = idxs
+
+    def train(self, net: nn.Module):
+        bias_p = []
+        weight_p = []
+        for name, p in net.named_parameters():
+            if 'bias' in name:
+                bias_p += [p]
+            else:
+                weight_p += [p]
+        optimizer = torch.optim.SGD(
+            [
+                {'params': weight_p, 'weight_decay': 0.0001},
+                {'params': bias_p, 'weight_decay': 0}
+            ],
+            lr=self.args.FEDME_lr
+        )
+
+        local_eps = self.args.FEDME_local_ep
+
+        for ep in range(local_eps):
+            for images, labels in self.ldr_train:
+                net_ep = copy.deepcopy(net) # This is fixed during a local update round
+                images, labels = images.to(self.args.device), labels.to(self.args.device)
+                for name, param in net.named_parameters():
+                    param.requires_grad = True
+                for name, param in net_ep.named_parameters():
+                    param.requires_grad = True
+                for _ in range(10):
+                    net.zero_grad()
+                    log_probs = net(images)
+                    loss = self.loss_func(log_probs, labels)
+                    for p_ep, p in zip(net_ep.parameters(), net.parameters()):
+                        loss = loss + self.args.FEDME_lambda/2 * torch.norm(p_ep - p) ** 2
+                    loss.backward()
+                    optimizer.step()
+
+        return net.state_dict(), 0.

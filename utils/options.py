@@ -46,9 +46,9 @@ def args_parser():
     parser.add_argument('--bs_frac_in', type=float, default='0.8', help='PerFedAvg fraction of batch used for inner update')
     parser.add_argument('--lam_ditto', type=float, default='1', help='Ditto parameter lambda')
 
-    parser.add_argument('--init_clients', type=int, default=10, help="the number of clients participate initially")
-    parser.add_argument('--resample', action='store_true', help="whether to resample the speed of clients")
-    parser.add_argument('--double_freq', type=int, default=10, help="how often to double the participated clients")
+
+
+
 
     # other arguments
     parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'emnist', 'mnist'], help="name of dataset")
@@ -66,11 +66,19 @@ def args_parser():
     parser.add_argument('--ray_test',  action='store_true')
     parser.add_argument('--repeat_id', type=int, default=0, help='the repeat id of the run')
 
+
+
+    # Arguments to control the system heterogeneity
     parser.add_argument('--hyper_setting', type=str, default='iid-hyper', choices=['iid-hyper', 'noniid-hyper'])
     parser.add_argument('--hyper_high', type=float, default='100')
     parser.add_argument('--hyper_low', type=float, default='1')
+    parser.add_argument('--reserve', action='store_true', help='whether some classes only appear on the stragglers')
 
-
+    # Arguments for the FLANP meta algorithm
+    parser.add_argument('--flanp', action='store_true', help="whether to use the doubling scheme")
+    parser.add_argument('--init_clients', type=int, default=10, help="the number of clients participate initially")
+    parser.add_argument('--resample', action='store_true', help="whether to resample the speed of clients")
+    parser.add_argument('--double_freq', type=int, default=10, help="how often to double the participated clients")
 
     # Arguments for Fine Tuning during testing
     parser.add_argument('--FT_epoch', type=int, default=10, help='the number of epoch for fine tuning')
@@ -84,6 +92,10 @@ def args_parser():
     # Arguments for FEDAVG
     parser.add_argument('--FEDAVG_local_ep', type=int, default=1)
 
+    # Arguments for LG
+    parser.add_argument('--LG_local_ep', type=int, default=1)
+    parser.add_argument('--LG_lr', type=int, default=0.01)
+
     # Arguments for HF-MAML
     parser.add_argument('--HFMAML_alpha', type=float, default=1e-2)
     parser.add_argument('--HFMAML_beta', type=float, default=1.)
@@ -91,9 +103,14 @@ def args_parser():
     parser.add_argument('--HFMAML_local_bs', type=int, default=10)
     parser.add_argument('--HFMAML_local_ep', type=int, default=5)
 
+    # Arguments for FedME
+    parser.add_argument('--FEDME_local_ep', type=int, default=1)
+    parser.add_argument('--FEDME_lr', type=int, default=0.01)
+    parser.add_argument('--FEDME_lambda', type=float, default=15)
 
     # Arguments for FedPD
     parser.add_argument('--FedPD_eta', type=float, default='10')
+
 
     args = parser.parse_args()
     return args

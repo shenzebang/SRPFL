@@ -17,18 +17,26 @@ from torch import nn
 
 from utils.options import args_parser
 from utils.train_utils import get_data, get_model, read_data, set_seed
-from utils.test_utils import test_fine_tune
-from models.Update import LocalUpdateFEDREP
+from utils.test_utils import test_fine_tune, test_fine_tune_ray
+from models.Update import LocalUpdateLG
+from models.test import test_img_local_all
 from tqdm import tqdm, trange
-import time
-import os
+import time, os
+
+import ray
+
+@ray.remote(num_gpus=.14)
+def ray_dispatch(local, net):
+    return local.train(net=net)
+
+
 
 if __name__ == '__main__':
     # parse args
     args = args_parser()
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    args.device = torch.device('cuda' if torch.cuda.is_available() and args.gpu != -1 else 'cpu')
-
+    # args.device = torch.device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() and args.gpu != -1 else 'cpu')
+    args.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     # control the seed for reproducibility
     np.random.seed(args.seed)
@@ -45,30 +53,27 @@ if __name__ == '__main__':
             np.random.shuffle(dict_users_train[idx])
     else:
         raise NotImplementedError
+
     # build model
     net_glob = get_model(args)
     net_glob.train()
-    if args.load_fed != 'n':
-        fed_model_path = './save/' + args.load_fed + '.pt'
-        net_glob.load_state_dict(torch.load(fed_model_path))
 
     total_num_layers = len(net_glob.state_dict().keys())
     # print(net_glob.state_dict().keys())
     net_keys = [*net_glob.state_dict().keys()]
 
     # specify the representation parameters (in representation_keys) and head parameters (all others)
-    if 'cifar' in  args.dataset:
-        representation_keys = [net_glob.weight_keys[i] for i in [0,1,3,4]]
-    elif 'mnist' in args.dataset:
-        representation_keys = [net_glob.weight_keys[i] for i in [0,1,2]]
-    elif 'sent140' in args.dataset:
-        representation_keys = [net_keys[i] for i in [0,1,2,3,4,5]]
-    else:
-        representation_keys = net_keys[:-2]
 
+
+    if 'cifar' in  args.dataset:
+        representation_keys = [net_glob.weight_keys[i] for i in [1,2]]
+    elif 'mnist' in args.dataset:
+        representation_keys = [net_glob.weight_keys[i] for i in [2,3]]
+    else:
+        raise NotImplementedError
 
     representation_keys = list(itertools.chain.from_iterable(representation_keys))
-    
+
     # generate list of local heads for each user
     local_heads = {}
     for user in range(args.num_users):
@@ -108,6 +113,10 @@ if __name__ == '__main__':
     m = min(args.num_users, args.init_clients) # m is the number of clients in the pool
     running_time_record = []
     running_time_all = 0
+
+
+    ray.init()
+
     for iter in trange(args.epochs):
 
         set_seed(seeds[iter])
@@ -142,30 +151,34 @@ if __name__ == '__main__':
             running_time_record.append(running_time_all)
 
 
+
         total_len=0
-        for ind, idx in enumerate(idxs_users):
-            local = LocalUpdateFEDREP(args=args, dataset=dataset_train, idxs=dict_users_train[idx], representation_keys=representation_keys)
 
-            net_local = copy.deepcopy(net_glob)
+        net_locals = [copy.deepcopy(net_glob).to(args.device) for idx in idxs_users]
+
+        for net_local, idx in zip(net_locals, idxs_users):
             w_local = net_local.state_dict()
-
             for k in local_heads[idx].keys():
                 w_local[k] = local_heads[idx][k]
-
             net_local.load_state_dict(w_local)
 
-            w_local, loss = local.train(net=net_local.to(args.device))
-            loss_locals.append(copy.deepcopy(loss))
-            total_len += lens[idx]
+        locals = [LocalUpdateLG(args=args, dataset=dataset_train, idxs=dict_users_train[idx], representation_keys=representation_keys)
+                  for idx in idxs_users]
+        results = ray.get([ray_dispatch.remote(local, net_local)
+                           for local, net_local in zip(locals, net_locals)])
+        w_locals = [result[0] for result in results]
+        loss_locals = [result[1] for result in results]
+
+
+        for w_local, idx in zip(w_locals, idxs_users):
             if len(w_glob) == 0:
                 w_glob = copy.deepcopy(w_local)
-                for k,key in enumerate(net_glob.state_dict().keys()):
-                    w_glob[key] = w_glob[key]*lens[idx]
+                for key in net_glob.state_dict().keys():
                     if key not in representation_keys:
                         local_heads[idx][key] = w_local[key]
             else:
-                for k,key in enumerate(net_glob.state_dict().keys()):
-                    w_glob[key] += w_local[key]*lens[idx]
+                for key in net_glob.state_dict().keys():
+                    w_glob[key] += w_local[key]
                     if key not in representation_keys:
                         local_heads[idx][key] = w_local[key]
 
@@ -178,16 +191,21 @@ if __name__ == '__main__':
 
         # get weighted average for global weights
         for k in net_glob.state_dict().keys():
-            w_glob[k] = torch.div(w_glob[k], total_len)
+            w_glob[k] = torch.div(w_glob[k], len(idxs_users))
 
         w_local = net_glob.state_dict()
         for k in w_glob.keys():
             w_local[k] = w_glob[k]
-        if args.epochs != iter:
-            net_glob.load_state_dict(w_glob)
+
+        net_glob.load_state_dict(w_glob)
 
         if test_flag:
-            FT_acc_test, loss_test = test_fine_tune(net_glob, args, dataset_test, dict_users_test,
+            if args.ray_test:
+                FT_acc_test, loss_test = test_fine_tune_ray(net_glob, args, dataset_test, dict_users_test,
+                                                        representation_keys=representation_keys,
+                                                        dataset_train=dataset_train, dict_users_train=dict_users_train)
+            else:
+                FT_acc_test, loss_test = test_fine_tune(net_glob, args, dataset_test, dict_users_test,
                                                          representation_keys=representation_keys,
                                                          dataset_train=dataset_train, dict_users_train=dict_users_train)
             print('Round {:3d}, Time {:.3f}, FT, Train loss: {:.3f}, Test loss: {:.3f}, Test accuracy: {:.2f}'.format(
@@ -200,15 +218,12 @@ if __name__ == '__main__':
 
 
     print('Average accuracy final 10 rounds: {}'.format(FT_accs10))
-
     times = np.array(running_time_record)
-
-
     save_dir = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}"
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    FT_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/FEDREP-{args.description}-FT-{args.repeat_id}-{args.hyper_setting}.csv"
+    FT_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/LG-{args.description}-FT-{args.repeat_id}-{args.hyper_setting}.csv"
     FT_accs = np.array(FT_accs)
     FT_accs = pd.DataFrame(np.stack([times, FT_accs], axis=1), columns=['times', 'accs'])
     FT_accs.to_csv(FT_save_file, index=False)

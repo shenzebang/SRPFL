@@ -25,7 +25,7 @@ import time
 import os
 import ray
 
-@ray.remote(num_gpus=.14)
+@ray.remote(num_gpus=.2)
 def ray_dispatch(local, net):
     return local_update(local, net)
 
@@ -104,6 +104,14 @@ if __name__ == '__main__':
         simulated_running_time = np.squeeze(np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers]))
     elif args.hyper_setting == "iid-hyper":
         simulated_running_time = np.random.exponential(1, args.num_users)
+        # This is added only for the purpose of ICML rebuttal
+        if args.reserve:
+            simulated_running_time = np.sort(simulated_running_time)
+            simulated_running_time_not_reserved = simulated_running_time[:int(0.8*args.num_users)]
+            simulated_running_time_reserved = simulated_running_time[int(0.8*args.num_users):]
+            np.random.shuffle(simulated_running_time_not_reserved)
+            np.random.shuffle(simulated_running_time_reserved)
+            simulated_running_time = np.concatenate([simulated_running_time_not_reserved, simulated_running_time_reserved])
     else:
         raise NotImplementedError
 
@@ -135,20 +143,19 @@ if __name__ == '__main__':
         else:
             raise NotImplementedError
 
-
-
-
-        running_time_ordering = np.argsort(simulated_running_time)
-        users_pool = running_time_ordering[:m]
-        idxs_users = np.random.choice(users_pool, min(m, int(args.frac * args.num_users)), replace=False)
+        if args.flanp:
+            running_time_ordering = np.argsort(simulated_running_time)
+            users_pool = running_time_ordering[:m]
+            idxs_users = np.random.choice(users_pool, min(m, int(args.frac * args.num_users)), replace=False)
+        else:
+            users_pool = np.arange(args.num_users)
+            idxs_users = np.random.choice(users_pool, max(1, int(args.frac * args.num_users)), replace=False)
 
         running_time_all += max(simulated_running_time[idxs_users])
 
         if test_flag:
             running_time_record.append(running_time_all)
 
-
-        w_keys_epoch = representation_keys
 
         total_len=0
 

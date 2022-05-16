@@ -7,7 +7,7 @@ import random
 import numpy as np
 import torch
 
-def noniid(dataset, num_users, shard_per_user, num_classes, rand_set_all=[], testb=False):
+def noniid(dataset, num_users, shard_per_user, num_classes, rand_set_all=[], reserve=False, testb=False):
     """
     Sample non-I.I.D client data from MNIST dataset
     :param dataset:
@@ -46,10 +46,26 @@ def noniid(dataset, num_users, shard_per_user, num_classes, rand_set_all=[], tes
             x[i] = np.concatenate([x[i], [idx]])
         idxs_dict[label] = x
 
+    # This is added only for the purpose of ICML rebuttal
+    # Let C = num_classes. The last 20% of [C] only appears on the last 20% of the clients
+
+
+
     if len(rand_set_all) == 0:
-        rand_set_all = list(range(num_classes)) * shard_per_class
-        random.shuffle(rand_set_all)
-        rand_set_all = np.array(rand_set_all).reshape((num_users, -1))
+        if reserve:
+            all_classes = list(range(num_classes))
+            reserved_classes = [c for c in all_classes if c >= int(num_classes * 0.8)]
+            not_reserved_classes = [c for c in all_classes if c not in reserved_classes]
+            not_reserved_classes = not_reserved_classes * shard_per_class
+            random.shuffle(not_reserved_classes)
+            reserved_classes = reserved_classes * shard_per_class
+            random.shuffle(reserved_classes)
+            rand_set_all = not_reserved_classes + reserved_classes
+            rand_set_all = np.array(rand_set_all).reshape((num_users, -1))
+        else:
+            rand_set_all = list(range(num_classes)) * shard_per_class
+            random.shuffle(rand_set_all)
+            rand_set_all = np.array(rand_set_all).reshape((num_users, -1))
 
     # divide and assign
     for i in range(num_users):
