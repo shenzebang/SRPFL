@@ -31,6 +31,13 @@ if __name__ == '__main__':
 
     # control the seed for reproducibility
     np.random.seed(args.seed)
+    if args.hyper_setting == "noniid-hyper":
+        exp_hypers = np.random.uniform(low=args.hyper_low, high=args.hyper_high, size=(args.num_users,))
+        simulated_running_time = np.squeeze(np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers]))
+    elif args.hyper_setting == "iid-hyper":
+        simulated_running_time = np.random.exponential(1, args.num_users)
+    else:
+        raise NotImplementedError
     seeds = np.random.randint(1000000, size=3)
     set_seed(seeds)
 
@@ -133,13 +140,7 @@ if __name__ == '__main__':
     FT_accs10 = 0
     global_accs10 = 0
     start = time.time()
-    if args.hyper_setting == "noniid-hyper":
-        exp_hypers = np.random.uniform(low=args.hyper_low, high=args.hyper_high, size=(args.num_users,))
-        simulated_running_time = np.squeeze(np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers]))
-    elif args.hyper_setting == "iid-hyper":
-        simulated_running_time = np.random.exponential(1, args.num_users)
-    else:
-        raise NotImplementedError
+
 
     double_c = args.double_freq
     m = min(args.num_users, args.init_clients) # m is the number of clients in the pool
