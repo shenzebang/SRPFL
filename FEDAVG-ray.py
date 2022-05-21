@@ -70,7 +70,20 @@ if __name__ == '__main__':
         for idx in dict_users_train.keys():
             np.random.shuffle(dict_users_train[idx])
     else:
-        raise NotImplementedError
+        if 'femnist' in args.dataset:
+            train_path = f'{args.leaf_path}/femnist/mytrain'
+            test_path = f'{args.leaf_path}/femnist/mytest'
+        clients, groups, dataset_train, dataset_test = read_data(train_path, test_path)
+        lens = []
+        for iii, c in enumerate(clients):
+            lens.append(len(dataset_train[c]['x']))
+        dict_users_train = list(dataset_train.keys())
+        dict_users_test = list(dataset_test.keys())
+        print(lens)
+        print(clients)
+        for c in dataset_train.keys():
+            dataset_train[c]['y'] = list(np.asarray(dataset_train[c]['y']).astype('int64'))
+            dataset_test[c]['y'] = list(np.asarray(dataset_test[c]['y']).astype('int64'))
 
     # build model
     net_glob = get_model(args)
@@ -147,7 +160,14 @@ if __name__ == '__main__':
 
         time_train = time.time()
         net_locals = [copy.deepcopy(net_glob).to(args.device) for idx in idxs_users]
-        locals = [LocalUpdateFEDAVG(args=args, dataset=dataset_train, idxs=dict_users_train[idx]) for idx in idxs_users]
+
+        # locals = [LocalUpdateFEDAVG(args=args, dataset=dataset_train, idxs=dict_users_train[idx]) for idx in idxs_users]
+        locals = []
+        for idx in idxs_users:
+            _dataset_train = dataset_train[
+                list(dataset_train.keys())[idx][:args.m_tr]] if 'femnist' in args.dataset else dataset_train
+            locals.append(LocalUpdateFEDAVG(args=args, dataset=_dataset_train, idxs=dict_users_train[idx]))
+
         results = ray.get([ray_dispatch.remote(local, net_local) for local, net_local in zip(locals, net_locals)])
         w_locals = [result[0] for result in results]
         loss_locals = [result[1] for result in results]

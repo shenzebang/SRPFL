@@ -907,7 +907,11 @@ class LocalUpdateFEDAVG(object):
     def __init__(self, args, dataset=None, idxs=None):
         self.args = args
         self.loss_func = nn.CrossEntropyLoss()
-        self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.local_bs, shuffle=True)
+        if 'femnist' in args.dataset or 'sent140' in args.dataset:
+            self.ldr_train = DataLoader(DatasetSplit(dataset, np.ones(len(dataset['x'])), name=self.args.dataset),
+                                        batch_size=self.args.local_bs, shuffle=True)
+        else:
+            self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.local_bs, shuffle=True)
         self.dataset = dataset
         self.idxs = idxs
 
@@ -953,7 +957,10 @@ class LocalUpdateFEDREP(object):
     def __init__(self, args, dataset, idxs, representation_keys):
         self.args = args
         self.loss_func = nn.CrossEntropyLoss()
-        self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.local_bs, shuffle=True)
+        if 'femnist' in args.dataset or 'sent140' in args.dataset:
+            self.ldr_train = DataLoader(DatasetSplit(dataset, np.ones(len(dataset['x'])),name=self.args.dataset), batch_size=self.args.local_bs, shuffle=True)
+        else:
+            self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.local_bs, shuffle=True)
         self.representation_keys = representation_keys
         self.dataset = dataset
         self.idxs = idxs
@@ -1024,7 +1031,11 @@ class LocalUpdateHFMAML:
         # define the dataloaders for training
         self.args = args
         self.loss_func = nn.CrossEntropyLoss()
-        self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.HFMAML_local_bs, shuffle=True)
+        if 'femnist' in args.dataset or 'sent140' in args.dataset:
+            self.ldr_train = DataLoader(DatasetSplit(dataset, np.ones(len(dataset['x'])), name=self.args.dataset),
+                                        batch_size=self.args.local_bs, shuffle=True)
+        else:
+            self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.local_bs, shuffle=True)
         self.idxs = idxs
 
     def train(self, net: nn.Module):
@@ -1095,7 +1106,11 @@ class LocalUpdateLG(object):
     def __init__(self, args, dataset, idxs, representation_keys):
         self.args = args
         self.loss_func = nn.CrossEntropyLoss()
-        self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.local_bs, shuffle=True)
+        if 'femnist' in args.dataset or 'sent140' in args.dataset:
+            self.ldr_train = DataLoader(DatasetSplit(dataset, np.ones(len(dataset['x'])), name=self.args.dataset),
+                                        batch_size=self.args.local_bs, shuffle=True)
+        else:
+            self.ldr_train = DataLoader(DatasetSplit(dataset, idxs), batch_size=self.args.local_bs, shuffle=True)
         self.representation_keys = representation_keys
         self.dataset = dataset
         self.idxs = idxs

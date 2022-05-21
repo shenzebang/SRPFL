@@ -68,6 +68,9 @@ def test_fine_tune(net, args, dataset_test, dict_users_test, representation_keys
         net_local.train()
         if args.dataset == 'cifar10' or args.dataset == 'cifar100' or args.dataset == 'emnist' or args.dataset == 'mnist':
             dataloader = DataLoader(DatasetSplit(dataset_train, dict_users_train[idx]), batch_size=args.local_bs, shuffle=True)
+        elif 'femnist' in args.dataset:
+            _dataset = dataset_train[list(dataset_train.keys())[idx][:args.m_ft]]
+            dataloader = DataLoader(DatasetSplit(_dataset, np.ones(len(_dataset['x'])),name=args.dataset), batch_size=args.local_bs, shuffle=True)
         else:
             raise NotImplementedError
 
@@ -77,13 +80,23 @@ def test_fine_tune(net, args, dataset_test, dict_users_test, representation_keys
 
         net_local.eval()
 
+        if 'femnist' in args.dataset:
+            a, b = test_img_local(net_local, dataset_test, args, user_idx=idx, idx=dict_users_test[idx])
+            tot += len(dataset_test[dict_users_test[idx]]['x'])
+        else:
+            a, b = test_img_local(net_local, dataset_test, args, user_idx=idx, idxs=dict_users_test[idx])
+            tot += len(dict_users_test[idx])
 
-        a, b = test_img_local(net_local, dataset_test, args, user_idx=idx, idxs=dict_users_test[idx])
-        tot += len(dict_users_test[idx])
+        if 'femnist' in args.dataset or 'sent140' in args.dataset:
+            acc_test_local[idx] = a * len(dataset_test[dict_users_test[idx]]['x'])
+            loss_test_local[idx] = b * len(dataset_test[dict_users_test[idx]]['x'])
+        else:
+            acc_test_local[idx] = a * len(dict_users_test[idx])
+            loss_test_local[idx] = b * len(dict_users_test[idx])
 
 
-        acc_test_local[idx] = a*len(dict_users_test[idx])
-        loss_test_local[idx] = b*len(dict_users_test[idx])
+        # acc_test_local[idx] = a*len(dict_users_test[idx])
+        # loss_test_local[idx] = b*len(dict_users_test[idx])
 
 
 
@@ -143,7 +156,12 @@ def test_MAML(net: nn.Module, args, dataset_test, dict_users_test, dataset_train
         # take a gradient step
 
         if args.dataset == 'cifar10' or args.dataset == 'cifar100' or args.dataset == 'emnist' or args.dataset == 'mnist':
-            dataloader = DataLoader(DatasetSplit(dataset_train, dict_users_train[idx]), batch_size=args.local_bs, shuffle=True)
+            dataloader = DataLoader(DatasetSplit(dataset_train, dict_users_train[idx]), batch_size=args.local_bs,
+                                    shuffle=True)
+        elif 'femnist' in args.dataset:
+            _dataset = dataset_train[list(dataset_train.keys())[idx][:args.m_ft]]
+            dataloader = DataLoader(DatasetSplit(_dataset, np.ones(len(_dataset['x'])), name=args.dataset),
+                                    batch_size=args.local_bs, shuffle=True)
         else:
             raise NotImplementedError
 
@@ -161,12 +179,19 @@ def test_MAML(net: nn.Module, args, dataset_test, dict_users_test, dataset_train
         net.load_state_dict(sd_idx)
         # test
 
-        a, b = test_img_local(net, dataset_test, args, user_idx=idx, idxs=dict_users_test[idx])
-        tot += len(dict_users_test[idx])
+        if 'femnist' in args.dataset:
+            a, b = test_img_local(net, dataset_test, args, user_idx=idx, idx=dict_users_test[idx])
+            tot += len(dataset_test[dict_users_test[idx]]['x'])
+        else:
+            a, b = test_img_local(net, dataset_test, args, user_idx=idx, idxs=dict_users_test[idx])
+            tot += len(dict_users_test[idx])
 
-
-        acc_test_local[idx] = a*len(dict_users_test[idx])
-        loss_test_local[idx] = b*len(dict_users_test[idx])
+        if 'femnist' in args.dataset or 'sent140' in args.dataset:
+            acc_test_local[idx] = a * len(dataset_test[dict_users_test[idx]]['x'])
+            loss_test_local[idx] = b * len(dataset_test[dict_users_test[idx]]['x'])
+        else:
+            acc_test_local[idx] = a * len(dict_users_test[idx])
+            loss_test_local[idx] = b * len(dict_users_test[idx])
 
 
 

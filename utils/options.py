@@ -51,7 +51,8 @@ def args_parser():
 
 
     # other arguments
-    parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'emnist', 'mnist'], help="name of dataset")
+    parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100', 'emnist', 'mnist', 'femnist'], help="name of dataset")
+    parser.add_argument('--leaf_path', type=str, help='path to the leaf repository')
     parser.add_argument('--iid', action='store_true', help='whether i.i.d or not')
     parser.add_argument('--num_classes', type=int, default=10, help="number of classes")
     parser.add_argument('--num_channels', type=int, default=3, help="number of channels of imges")
