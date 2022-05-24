@@ -160,9 +160,12 @@ if __name__ == '__main__':
             raise NotImplementedError
 
         if args.flanp:
-            running_time_ordering = np.argsort(simulated_running_time)
+            active_users_pool = np.random.choice(args.num_users, max(1, int(args.frac * args.num_users)), replace=False)
+            simulated_running_time_in_pool = simulated_running_time[active_users_pool]
+            running_time_ordering = np.argsort(simulated_running_time_in_pool)
             users_pool = running_time_ordering[:m]
-            idxs_users = np.random.choice(users_pool, min(m, int(args.frac * args.num_users)), replace=False)
+            idxs_users = active_users_pool[users_pool]
+            # idxs_users = np.random.choice(users_pool, min(m, int(args.frac * args.num_users)), replace=False)
         else:
             users_pool = np.arange(args.num_users)
             idxs_users = np.random.choice(users_pool, max(1, int(args.frac * args.num_users)), replace=False)
