@@ -189,7 +189,10 @@ if __name__ == '__main__':
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    global_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/HFMAML-{args.description}-global-{args.repeat_id}-{args.hyper_setting}.csv"
+    if args.frac == 1:
+        global_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/HFMAML-{args.description}-global-{args.repeat_id}-{args.hyper_setting}.csv"
+    else:
+        global_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/HFMAML-partial-{args.description}-global-{args.repeat_id}-{args.hyper_setting}.csv"
     global_accs = np.array(global_accs)
     global_accs = pd.DataFrame(np.stack([times, global_accs], axis=1), columns=['times', 'accs'])
     global_accs.to_csv(global_save_file, index=False)

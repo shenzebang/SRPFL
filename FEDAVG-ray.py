@@ -143,9 +143,11 @@ if __name__ == '__main__':
             raise NotImplementedError
 
         if args.flanp:
-            running_time_ordering = np.argsort(simulated_running_time)
+            active_users_pool = np.random.choice(args.num_users, max(1, int(args.frac * args.num_users)), replace=False)
+            simulated_running_time_in_pool = simulated_running_time[active_users_pool]
+            running_time_ordering = np.argsort(simulated_running_time_in_pool)
             users_pool = running_time_ordering[:m]
-            idxs_users = np.random.choice(users_pool, min(m, int(args.frac * args.num_users)), replace=False)
+            idxs_users = active_users_pool[users_pool]
         else:
             users_pool = np.arange(args.num_users)
             idxs_users = np.random.choice(users_pool, max(1, int(args.frac * args.num_users)), replace=False)
@@ -242,13 +244,18 @@ if __name__ == '__main__':
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-
-    FT_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/FEDAVG-{args.description}-FT-{args.repeat_id}-{args.hyper_setting}.csv"
+    if args.frac == 1:
+        FT_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/FEDAVG-{args.description}-FT-{args.repeat_id}-{args.hyper_setting}.csv"
+    else:
+        FT_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/FEDAVG-partial-{args.description}-FT-{args.repeat_id}-{args.hyper_setting}.csv"
     FT_accs = np.array(FT_accs)
     FT_accs = pd.DataFrame(np.stack([times, FT_accs], axis=1), columns=['times', 'accs'])
     FT_accs.to_csv(FT_save_file, index=False)
 
-    global_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/FEDAVG-{args.description}-global-{args.repeat_id}-{args.hyper_setting}.csv"
+    if args.frac == 1:
+        global_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/FEDAVG-{args.description}-global-{args.repeat_id}-{args.hyper_setting}.csv"
+    else:
+        global_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/FEDAVG-partial-{args.description}-global-{args.repeat_id}-{args.hyper_setting}.csv"
     global_accs = np.array(global_accs)
     global_accs = pd.DataFrame(np.stack([times, global_accs], axis=1), columns=['times', 'accs'])
     global_accs.to_csv(global_save_file, index=False)
