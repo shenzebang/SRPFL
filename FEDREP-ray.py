@@ -259,8 +259,10 @@ if __name__ == '__main__':
     save_dir = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}"
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-
-    FT_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/FEDREP-{args.description}-FT-{args.repeat_id}-{args.hyper_setting}.csv"
+    if args.frac == 1:
+        FT_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/FEDREP-{args.description}-FT-{args.repeat_id}-{args.hyper_setting}.csv"
+    else:
+        FT_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/FEDREP-partial-{args.description}-FT-{args.repeat_id}-{args.hyper_setting}.csv"
     FT_accs = np.array(FT_accs)
     FT_accs = pd.DataFrame(np.stack([times, FT_accs], axis=1), columns=['times', 'accs'])
     FT_accs.to_csv(FT_save_file, index=False)
