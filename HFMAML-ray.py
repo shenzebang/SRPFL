@@ -109,7 +109,7 @@ if __name__ == '__main__':
 
         set_seed(seeds[iter])
 
-        test_flag = iter % args.test_freq == args.test_freq - 1 or iter >= args.epochs - 10
+        test_flag = iter % args.test_freq == args.test_freq - 1 or iter >= args.epochs - 3
 
 
         if args.hyper_setting == "iid-hyper":
