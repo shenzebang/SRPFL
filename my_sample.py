@@ -11,7 +11,7 @@ from tqdm import trange
 
 from PIL import Image
 
-NUM_USER = 200
+NUM_USER = 100
 CLASS_PER_USER = 3  # from 10 lowercase characters
 
 def relabel_class(c):
@@ -73,7 +73,7 @@ def main():
             nist_data[class_-36] = imgs  # a list of list, key is (0, 25)
             print(len(imgs))
 
-    num_samples = np.random.lognormal(4, 1, (NUM_USER)) + 100
+    num_samples = np.zeros(NUM_USER) + 150
 
     idx = np.zeros(10, dtype=np.int64)
 
