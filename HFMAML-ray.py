@@ -74,8 +74,8 @@ if __name__ == '__main__':
             np.random.shuffle(dict_users_train[idx])
     else:
         if 'femnist' in args.dataset:
-            train_path = f'{args.leaf_path}/femnist/mytrain'
-            test_path = f'{args.leaf_path}/femnist/mytest'
+            train_path = f'data/femnist/mytrain'
+            test_path = f'data/femnist/mytest'
         clients, groups, dataset_train, dataset_test = read_data(train_path, test_path)
         lens = []
         for iii, c in enumerate(clients):
