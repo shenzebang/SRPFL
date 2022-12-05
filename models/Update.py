@@ -12,7 +12,6 @@ import math
 import numpy as np
 import time
 import copy
-import FedProx
 import torch.nn.functional as F
 
 from models.test import test_img_local
