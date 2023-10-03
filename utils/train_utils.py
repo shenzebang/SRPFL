@@ -6,6 +6,7 @@ from models.Nets import CNNCifar, CNNCifar100, RNNSent, MLP
 from utils.sampling import noniid
 import os
 import json
+from torch.utils.data import Dataset
 
 import numpy as np
 import random
@@ -133,3 +134,25 @@ def set_seed(seeds):
     np.random.seed(seeds[0])
     random.seed(seeds[1])
     torch.manual_seed(seeds[2])
+
+class DatasetSplit(Dataset):
+    def __init__(self, dataset, idxs, name=None):
+        self.dataset = dataset
+        self.idxs = list(idxs)
+        self.name = name
+
+    def __len__(self):
+        return len(self.idxs)
+
+    def __getitem__(self, item):
+        if self.name is None:
+            image, label = self.dataset[self.idxs[item]]
+        elif 'femnist' in self.name:
+            image = torch.reshape(torch.tensor(self.dataset['x'][item]),(1,28,28))
+            label = torch.tensor(self.dataset['y'][item])
+        elif 'sent140' in self.name:
+            image = self.dataset['x'][item]
+            label = self.dataset['y'][item]
+        else:
+            image, label = self.dataset[self.idxs[item]]
+        return image, label

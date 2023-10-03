@@ -2,7 +2,7 @@
 
 ## Usage
 
-To replicate the results presented in our submission, please use the "*.sh" files under the experiments folder.
+To replicate the results presented in our submission, please use the "*.sh" files under the `experiments` folder.
 
 ## Datasets
 

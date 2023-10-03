@@ -7,7 +7,7 @@
 
 import torch
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 import math
 import numpy as np
 import time
@@ -17,27 +17,7 @@ import torch.nn.functional as F
 from models.test import test_img_local
 from models.language_utils import get_word_emb_arr, repackage_hidden, process_x, process_y 
 
-class DatasetSplit(Dataset):
-    def __init__(self, dataset, idxs, name=None):
-        self.dataset = dataset
-        self.idxs = list(idxs)
-        self.name = name
-
-    def __len__(self):
-        return len(self.idxs)
-
-    def __getitem__(self, item):
-        if self.name is None:
-            image, label = self.dataset[self.idxs[item]]
-        elif 'femnist' in self.name:
-            image = torch.reshape(torch.tensor(self.dataset['x'][item]),(1,28,28))
-            label = torch.tensor(self.dataset['y'][item])
-        elif 'sent140' in self.name:
-            image = self.dataset['x'][item]
-            label = self.dataset['y'][item]
-        else:
-            image, label = self.dataset[self.idxs[item]]
-        return image, label
+from utils.train_utils import DatasetSplit
 
 class LocalUpdateMAML(object):
 
@@ -901,7 +881,7 @@ class LocalUpdate(object):
             epoch_loss.append(sum(batch_loss) / len(batch_loss))
         return net.state_dict(), sum(epoch_loss) / len(epoch_loss), self.indd
 
-# local update class for FEDREP
+# local update class for FEDAVG
 class LocalUpdateFEDAVG(object):
     def __init__(self, args, dataset=None, idxs=None):
         self.args = args

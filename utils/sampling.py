@@ -53,14 +53,29 @@ def noniid(dataset, num_users, shard_per_user, num_classes, rand_set_all=[], res
 
     if len(rand_set_all) == 0:
         if reserve:
-            all_classes = list(range(num_classes))
-            reserved_classes = [c for c in all_classes if c >= int(num_classes * 0.8)]
-            not_reserved_classes = [c for c in all_classes if c not in reserved_classes]
-            not_reserved_classes = not_reserved_classes * shard_per_class
-            random.shuffle(not_reserved_classes)
-            reserved_classes = reserved_classes * shard_per_class
-            random.shuffle(reserved_classes)
-            rand_set_all = not_reserved_classes + reserved_classes
+            # all_classes = list(range(num_classes))
+            # reserved_classes = [c for c in all_classes if c >= int(num_classes * 0.8)]
+            # not_reserved_classes = [c for c in all_classes if c not in reserved_classes]
+            # not_reserved_classes = not_reserved_classes * shard_per_class
+            # random.shuffle(not_reserved_classes)
+            # reserved_classes = reserved_classes * shard_per_class
+            # random.shuffle(reserved_classes)
+            # rand_set_all = not_reserved_classes + reserved_classes
+            # rand_set_all = np.array(rand_set_all).reshape((num_users, -1))
+            groups = [
+                [0, 1, 2],
+                [3, 4, 5],
+                [6, 7, 8, 9],
+            ]
+            multiplied_groups = []
+            for group in groups:
+                group = group * shard_per_class
+                random.shuffle(group)
+                multiplied_groups.append(group)
+            rand_set_all = []
+            for multiplied_group in multiplied_groups:
+                rand_set_all = rand_set_all + multiplied_group
+
             rand_set_all = np.array(rand_set_all).reshape((num_users, -1))
         else:
             rand_set_all = list(range(num_classes)) * shard_per_class

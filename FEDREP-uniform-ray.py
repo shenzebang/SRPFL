@@ -18,14 +18,14 @@ from torch import nn
 from utils.options import args_parser
 from utils.train_utils import get_data, get_model, read_data, set_seed
 from utils.test_utils import test_fine_tune, test_fine_tune_ray
-from models.Update import LocalUpdateLG
+from models.Update import LocalUpdateFEDREP
 from models.test import test_img_local_all
 from tqdm import tqdm, trange
-import time, os
-
+import time
+import os
 import ray
-from utils.common_utils import save_results, load_dataset, resample_simulated_running_time, get_simulated_running_time
-@ray.remote(num_gpus=.14)
+
+@ray.remote(num_gpus=.2)
 def ray_dispatch(local, net):
     return local_update(local, net)
 
@@ -33,16 +33,33 @@ def local_update(local, net):
     w_local, loss = local.train(net=net)
     return w_local, loss
 
+
+
+
 if __name__ == '__main__':
     # parse args
     args = args_parser()
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     # args.device = torch.device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() and args.gpu != -1 else 'cpu')
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     args.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     # control the seed for reproducibility
     np.random.seed(1)
-    simulated_running_time = get_simulated_running_time(args)
+    if args.hyper_setting == "noniid-hyper":
+        exp_hypers = np.random.uniform(low=args.hyper_low, high=args.hyper_high, size=(args.num_users,))
+        simulated_running_time = np.squeeze(np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers]))
+    elif args.hyper_setting == "iid-hyper":
+        simulated_running_time = np.random.randint(low=10, high=100, size=(args.num_users,))
+        # This is added only for the purpose of ICML rebuttal
+        if args.reserve:
+            simulated_running_time = np.sort(simulated_running_time)
+            simulated_running_time_not_reserved = simulated_running_time[:int(0.8*args.num_users)]
+            simulated_running_time_reserved = simulated_running_time[int(0.8*args.num_users):]
+            np.random.shuffle(simulated_running_time_not_reserved)
+            np.random.shuffle(simulated_running_time_reserved)
+            simulated_running_time = np.concatenate([simulated_running_time_not_reserved, simulated_running_time_reserved])
+    else:
+        raise NotImplementedError
 
     np.random.seed(args.seed)
     seeds = np.random.randint(1000000, size=3)
@@ -50,11 +67,34 @@ if __name__ == '__main__':
 
     seeds = np.random.randint(1000000, size=(args.epochs, 3))
 
-    dataset_train, dataset_test, dict_users_train, dict_users_test, n_local_datapoints = load_dataset(args)
+
+    lens = np.ones(args.num_users)
+    if 'cifar' in args.dataset or args.dataset == 'mnist' or args.dataset == 'emnist':
+        dataset_train, dataset_test, dict_users_train, dict_users_test = get_data(args)
+        for idx in dict_users_train.keys():
+            np.random.shuffle(dict_users_train[idx])
+    else:
+        if 'femnist' in args.dataset:
+            train_path = f'data/femnist/mytrain'
+            test_path = f'data/femnist/mytest'
+        clients, groups, dataset_train, dataset_test = read_data(train_path, test_path)
+        lens = []
+        for iii, c in enumerate(clients):
+            lens.append(len(dataset_train[c]['x']))
+        dict_users_train = list(dataset_train.keys())
+        dict_users_test = list(dataset_test.keys())
+        print(lens)
+        print(clients)
+        for c in dataset_train.keys():
+            dataset_train[c]['y'] = list(np.asarray(dataset_train[c]['y']).astype('int64'))
+            dataset_test[c]['y'] = list(np.asarray(dataset_test[c]['y']).astype('int64'))
 
     # build model
     net_glob = get_model(args)
     net_glob.train()
+    if args.load_fed != 'n':
+        fed_model_path = './save/' + args.load_fed + '.pt'
+        net_glob.load_state_dict(torch.load(fed_model_path))
 
     total_num_layers = len(net_glob.state_dict().keys())
     # print(net_glob.state_dict().keys())
@@ -62,11 +102,10 @@ if __name__ == '__main__':
 
     # specify the representation parameters (in representation_keys) and head parameters (all others)
 
-
     if 'cifar' in  args.dataset:
-        representation_keys = [net_glob.weight_keys[i] for i in [1,2]]
+        representation_keys = [net_glob.weight_keys[i] for i in [0,1,3,4]]
     elif 'mnist' in args.dataset:
-        representation_keys = [net_glob.weight_keys[i] for i in [2,3]]
+        representation_keys = [net_glob.weight_keys[i] for i in [0,1,2]]
     else:
         raise NotImplementedError
 
@@ -98,7 +137,7 @@ if __name__ == '__main__':
     running_time_all = 0
 
 
-    if args.ray_train: ray.init()
+    ray.init()
 
     for iter in trange(args.epochs):
 
@@ -109,7 +148,16 @@ if __name__ == '__main__':
         w_glob = {}
         loss_locals = []
 
-        simulated_running_time = resample_simulated_running_time(args, simulated_running_time)
+        if args.hyper_setting == "iid-hyper":
+            if args.resample:
+                # regenerate samples from expotential distribution
+                simulated_running_time = np.random.exponential(1, args.num_users)
+        elif args.hyper_setting == "noniid-hyper":
+            if args.resample:
+                exp_hypers = np.random.uniform(low=args.hyper_low, high=args.hyper_high, size=(args.num_users,))
+            simulated_running_time = np.squeeze(np.array([np.random.exponential(hyper, 1) for hyper in exp_hypers]))
+        else:
+            raise NotImplementedError
 
         if args.flanp:
             active_users_pool = np.random.choice(args.num_users, max(1, int(args.frac * args.num_users)), replace=False)
@@ -117,6 +165,7 @@ if __name__ == '__main__':
             running_time_ordering = np.argsort(simulated_running_time_in_pool)
             users_pool = running_time_ordering[:m]
             idxs_users = active_users_pool[users_pool]
+            # idxs_users = np.random.choice(users_pool, min(m, int(args.frac * args.num_users)), replace=False)
         else:
             users_pool = np.arange(args.num_users)
             idxs_users = np.random.choice(users_pool, max(1, int(args.frac * args.num_users)), replace=False)
@@ -126,7 +175,8 @@ if __name__ == '__main__':
         if test_flag:
             running_time_record.append(running_time_all)
 
-        total_len = sum([n_local_datapoints[idx] for idx in idxs_users])
+
+        total_len=0
 
         net_locals = [copy.deepcopy(net_glob).to(args.device) for idx in idxs_users]
 
@@ -138,35 +188,34 @@ if __name__ == '__main__':
 
         locals = []
         for idx in idxs_users:
-            _dataset_train = dataset_train[
-                list(dataset_train.keys())[idx][:args.m_tr]] if 'femnist' in args.dataset else dataset_train
-            locals.append(LocalUpdateLG(args=args, dataset=_dataset_train, idxs=dict_users_train[idx],
-                                            representation_keys=representation_keys))
+            _dataset_train = dataset_train[list(dataset_train.keys())[idx][:args.m_tr]] if 'femnist' in args.dataset else dataset_train
+            locals.append(LocalUpdateFEDREP(args=args, dataset=_dataset_train, idxs=dict_users_train[idx], representation_keys=representation_keys))
 
-        # results = ray.get([ray_dispatch.remote(local, net_local)
-        #                    for local, net_local in zip(locals, net_locals)])
-        if args.ray_train:
-            results = ray.get([ray_dispatch.remote(local, net_local) for local, net_local in zip(locals, net_locals)])
-        else:
-            results = [local_update(local, net_local) for local, net_local in zip(locals, net_locals)]
+        results = ray.get([ray_dispatch.remote(local, net_local) for local, net_local in zip(locals, net_locals)])
         w_locals = [result[0] for result in results]
         loss_locals = [result[1] for result in results]
 
 
         for w_local, idx in zip(w_locals, idxs_users):
             if len(w_glob) == 0:
-                for key in net_glob.state_dict():
-                    w_glob[key] = copy.deepcopy(w_local[key]) * n_local_datapoints[idx]
+                w_glob = copy.deepcopy(w_local)
                 for key in net_glob.state_dict().keys():
                     if key not in representation_keys:
                         local_heads[idx][key] = w_local[key]
             else:
                 for key in net_glob.state_dict().keys():
-                    w_glob[key] += w_local[key] * n_local_datapoints[idx]
+                    w_glob[key] += w_local[key]
                     if key not in representation_keys:
                         local_heads[idx][key] = w_local[key]
 
-        loss_avg = sum([loss_local * n_local_datapoints[idx] for idx, loss_local in enumerate(loss_locals)]) / total_len
+
+
+
+
+
+
+
+        loss_avg = sum(loss_locals) / len(loss_locals)
         loss_train.append(loss_avg)
 
         # decide if we should double the number of clients in the pool
@@ -175,15 +224,16 @@ if __name__ == '__main__':
 
         # get weighted average for global weights
         for k in net_glob.state_dict().keys():
-            w_glob[k] = torch.div(w_glob[k], total_len)
+            w_glob[k] = torch.div(w_glob[k], len(idxs_users))
 
         w_local = net_glob.state_dict()
         for k in w_glob.keys():
             w_local[k] = w_glob[k]
-
-        net_glob.load_state_dict(w_glob)
+        if args.epochs != iter:
+            net_glob.load_state_dict(w_glob)
 
         if test_flag:
+
             if args.ray_test:
                 FT_acc_test, loss_test = test_fine_tune_ray(net_glob, args, dataset_test, dict_users_test,
                                                         representation_keys=representation_keys,
@@ -200,12 +250,19 @@ if __name__ == '__main__':
             if iter >= args.epochs-10:
                 FT_accs10 += FT_acc_test/10
 
-
     print('Average accuracy final 10 rounds: {}'.format(FT_accs10))
+    # print(end-start)
+    # print(times)
+    # print(accs)
+    times = np.array(running_time_record)
 
-    results = {
-        "running_time_record": running_time_record,
-        "FT_accs": FT_accs,
-    }
-
-    save_results(args, "LG", results)
+    save_dir = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}"
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    if args.frac == 1:
+        FT_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/FEDREP-{args.description}-FT-{args.repeat_id}-{args.hyper_setting}.csv"
+    else:
+        FT_save_file = f"./save/{args.dataset}-{args.shard_per_user}-{args.num_users}/FEDREP-partial-{args.description}-FT-{args.repeat_id}-{args.hyper_setting}.csv"
+    FT_accs = np.array(FT_accs)
+    FT_accs = pd.DataFrame(np.stack([times, FT_accs], axis=1), columns=['times', 'accs'])
+    FT_accs.to_csv(FT_save_file, index=False)

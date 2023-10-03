@@ -1,14 +1,7 @@
-copy
-itertools
-json
-math
-numpy
-os
-pandas
-random
-time
-torch
-torchvision
+numpy>=1.21.6
+torch>=1.10.1
+torchvision>=0.11.2
+ray>=1.6.0
 tqdm
-ray
+pandas
 

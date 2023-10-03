@@ -46,6 +46,9 @@ def args_parser():
     parser.add_argument('--bs_frac_in', type=float, default='0.8', help='PerFedAvg fraction of batch used for inner update')
     parser.add_argument('--lam_ditto', type=float, default='1', help='Ditto parameter lambda')
 
+    parser.add_argument('--global_lr', type=float, default=.1, help="global learning rate for asynchronous")
+
+    parser.add_argument('--maximum_system_time', type=int, default=15000,)
 
 
 
@@ -65,6 +68,7 @@ def args_parser():
 
     parser.add_argument('--description', type=str, default='None', help='describe the setting')
     parser.add_argument('--ray_test',  action='store_true')
+    parser.add_argument('--ray_train', action='store_true')
     parser.add_argument('--repeat_id', type=int, default=0, help='the repeat id of the run')
 
 
